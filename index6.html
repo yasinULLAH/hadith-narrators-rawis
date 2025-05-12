@@ -516,6 +516,9 @@
       word-wrap: normal;
       direction: ltr;
     }
+	.viz-controls {
+    z-index: 1000000;
+}
   </style>
 </head>
 <body class="light-theme">
@@ -932,488 +935,695 @@
   <link href="https://fonts.googleapis.com/icon?family=Material+Icons" rel="stylesheet">
   <link href="https://fonts.googleapis.com/css2?family=Noto+Nastaliq+Urdu&family=Noto+Sans&display=swap" rel="stylesheet">
 <script>
-// DB and UI constants
-const DB_NAME = 'IsnadNarratorsDB';
-const DB_VERSION = 1;
-const NARRATORS_STORE = 'narrators';
-const NOTES_STORE = 'notes';
-const BOOKMARKS_STORE = 'bookmarks';
-const CATEGORIES_STORE = 'categories';
-const SETTINGS_STORE = 'settings';
-const ITEMS_PER_PAGE = 20;
 
-// State variables
+
+// Core variables
 let db;
 let currentNarrator = null;
 let currentLanguage = 'en';
 let currentTheme = 'light';
+let isLoading = false;
 let currentPage = 1;
-let totalNarrators = 0;
-let currentFilter = {};
+let itemsPerPage = 20;
+let totalItems = 0;
+let narrators = []; // In-memory cache for faster access
 
-// Initialize the application
-document.addEventListener('DOMContentLoaded', init);
+// Database configuration
+const DB_NAME = 'IsnadNarratorsDB';
+const DB_VERSION = 1;
+const STORES = {
+  NARRATORS: 'narrators',
+  NOTES: 'notes',
+  BOOKMARKS: 'bookmarks',
+  SETTINGS: 'settings'
+};
 
-// Append progress modal to document
-const importProgressModalHTML = `
-
-  
+// Initialize application
+document.addEventListener('DOMContentLoaded', async () => {
+  try {
+    // Show loading state
+    showLoader('Initializing application...');
     
-      Importing Narrator Data
-      راوی ڈیٹا درآمد کر رہا ہے
+    // Open database
+    await openDatabase();
     
+    // Load settings
+    await loadSettings();
     
-      Please wait while we import the narrator data. This may take a few moments...
-      براہ کرم انتظار کریں جب تک ہم راوی ڈیٹا درآمد کر رہے ہیں۔ اس میں کچھ لمحات لگ سکتے ہیں...
-    
-    
-      
-    
-    
-      0%
-    
-  
-`;
-
-document.body.insertAdjacentHTML('beforeend', importProgressModalHTML);
-
-// Add loading CSS to existing styles
-const loadingCSS = `
-#app-loading-indicator {
-  position: fixed;
-  top: 0;
-  left: 0;
-  width: 100%;
-  height: 100%;
-  background-color: rgba(0,0,0,0.7);
-  display: flex;
-  flex-direction: column;
-  justify-content: center;
-  align-items: center;
-  z-index: 9999;
-  transition: opacity 0.5s ease;
-}
-
-.loading-spinner {
-  width: 50px;
-  height: 50px;
-  border: 5px solid rgba(255,255,255,0.3);
-  border-radius: 50%;
-  border-top-color: var(--primary);
-  animation: spin 1s ease-in-out infinite;
-}
-
-.loading-text {
-  margin-top: 20px;
-  color: white;
-  font-size: 18px;
-}
-
-@keyframes spin {
-  to { transform: rotate(360deg); }
-}
-
-.progress-container {
-  width: 100%;
-  height: 20px;
-  background-color: #e0e0e0;
-  border-radius: 10px;
-  margin: 20px 0;
-  overflow: hidden;
-}
-
-.progress-bar {
-  height: 100%;
-  background-color: var(--primary);
-  width: 0;
-  transition: width 0.3s ease;
-}
-
-.progress-text {
-  text-align: center;
-  font-weight: bold;
-}
-
-.pagination {
-  display: flex;
-  justify-content: center;
-  align-items: center;
-  margin-top: 1.5rem;
-  padding: 0.5rem;
-  gap: 1rem;
-}
-
-.pagination-btn {
-  min-width: 40px;
-  height: 40px;
-  display: flex;
-  justify-content: center;
-  align-items: center;
-}
-
-.page-info {
-  font-size: 0.9rem;
-  color: var(--text-color);
-}
-
-.loading {
-  text-align: center;
-  padding: 2rem;
-  color: var(--primary);
-  font-weight: bold;
-}
-`;
-
-document.querySelector('style').textContent += loadingCSS;
-
-// Initialize app
-async function init() {
-  await initDB();
-  await loadSettings();
-  updateLanguageDisplay();
-  updateThemeDisplay();
-  
-  // Show loading indicator
-  showLoadingIndicator();
-  
-  // Check if it's the first run
-  const hasCompletedOnboarding = await getSettingValue('hasCompletedOnboarding');
-  
-  // Check if we need to import data
-  const hasImportedData = await getSettingValue('hasImportedData');
-  if (!hasImportedData) {
-    // Show progress modal instead of trying to import all at once
-    showModal('import-progress-modal');
-    
-    try {
-      // Start the import process in chunks
-      const response = await fetch('all_rawis.csv');
-      if (!response.ok) {
-        throw new Error(`HTTP error! status: ${response.status}`);
-      }
-      
-      const csvData = await response.text();
-      await importCSVDataProgressively(csvData);
-      await updateSetting('hasImportedData', true);
-      hideModal('import-progress-modal');
-    } catch (error) {
-      console.error('Error loading CSV file:', error);
-      alert('Failed to load narrator data. Please try refreshing the page.');
-      hideModal('import-progress-modal');
+    // Check if we need to import initial data
+    const hasData = await hasInitialData();
+    if (!hasData) {
+      await importInitialData();
+    } else {
+      // Load all narrators into memory for better performance
+      narrators = await getAllNarrators();
+      console.log(`Loaded ${narrators.length} narrators into memory`);
     }
+    
+    // Setup UI and listeners
+    setupEventListeners();
+    applyLanguageAndTheme();
+    populateFilterOptions();
+    await loadNarratorsList();
+    
+    // Hide loader
+    hideLoader();
+    
+    // Show onboarding if first time
+    const hasSeenOnboarding = await getSetting('hasSeenOnboarding');
+    if (!hasSeenOnboarding) {
+      showOnboarding();
+    }
+  } catch (error) {
+    console.error('Initialization error:', error);
+    showError('Failed to initialize application. Please refresh the page.');
+    hideLoader();
   }
-  
-  // Load the first page of narrators
-  await populateNarratorsList({}, 1);
-  
-  // Initialize filters after the first page is loaded
-  // This prevents hanging by not processing all data at once
-  setTimeout(async () => {
-    await populateFilters();
-    hideLoadingIndicator();
-    
-    // Show onboarding only after data is loaded
-    if (!hasCompletedOnboarding) {
-      showModal('onboarding-modal');
-    }
-  }, 100);
-  
-  // Set up event listeners
-  setupEventListeners();
-}
+});
 
-// Database initialization
-async function initDB() {
+// Open and initialize database
+function openDatabase() {
   return new Promise((resolve, reject) => {
     const request = indexedDB.open(DB_NAME, DB_VERSION);
     
-    request.onupgradeneeded = (event) => {
-      db = event.target.result;
+    request.onerror = event => {
+      reject(new Error('Failed to open database'));
+    };
+    
+    request.onupgradeneeded = event => {
+      const db = event.target.result;
       
-      // Create object stores if they don't exist
-      if (!db.objectStoreNames.contains(NARRATORS_STORE)) {
-        const narratorsStore = db.createObjectStore(NARRATORS_STORE, { keyPath: 'scholar_indx' });
+      // Create narrators store
+      if (!db.objectStoreNames.contains(STORES.NARRATORS)) {
+        const narratorsStore = db.createObjectStore(STORES.NARRATORS, { keyPath: 'scholar_indx' });
         narratorsStore.createIndex('name', 'name', { unique: false });
         narratorsStore.createIndex('grade', 'grade', { unique: false });
-        narratorsStore.createIndex('tags', 'tags', { unique: false, multiEntry: true });
       }
       
-      if (!db.objectStoreNames.contains(NOTES_STORE)) {
-        const notesStore = db.createObjectStore(NOTES_STORE, { keyPath: 'id', autoIncrement: true });
+      // Create notes store
+      if (!db.objectStoreNames.contains(STORES.NOTES)) {
+        const notesStore = db.createObjectStore(STORES.NOTES, { keyPath: 'id', autoIncrement: true });
         notesStore.createIndex('narrator_id', 'narrator_id', { unique: false });
       }
       
-      if (!db.objectStoreNames.contains(BOOKMARKS_STORE)) {
-        db.createObjectStore(BOOKMARKS_STORE, { keyPath: 'narrator_id' });
+      // Create bookmarks store
+      if (!db.objectStoreNames.contains(STORES.BOOKMARKS)) {
+        db.createObjectStore(STORES.BOOKMARKS, { keyPath: 'narrator_id' });
       }
       
-      if (!db.objectStoreNames.contains(CATEGORIES_STORE)) {
-        const categoriesStore = db.createObjectStore(CATEGORIES_STORE, { keyPath: 'id', autoIncrement: true });
-        categoriesStore.createIndex('name', 'name', { unique: true });
-      }
-      
-      if (!db.objectStoreNames.contains(SETTINGS_STORE)) {
-        db.createObjectStore(SETTINGS_STORE, { keyPath: 'key' });
+      // Create settings store
+      if (!db.objectStoreNames.contains(STORES.SETTINGS)) {
+        db.createObjectStore(STORES.SETTINGS, { keyPath: 'key' });
       }
     };
     
-    request.onsuccess = (event) => {
+    request.onsuccess = event => {
       db = event.target.result;
-      resolve();
-    };
-    
-    request.onerror = (event) => {
-      console.error('Database error:', event.target.error);
-      reject(event.target.error);
+      resolve(db);
     };
   });
 }
 
-// Import data in chunks to prevent UI freezing
-async function importCSVDataProgressively(csvString) {
-  const lines = csvString.split('\n');
+// Check if we have initial data
+async function hasInitialData() {
+  try {
+    const count = await countNarrators();
+    return count > 0;
+  } catch (error) {
+    console.error('Error checking initial data:', error);
+    return false;
+  }
+}
+
+// Count narrators
+function countNarrators() {
+  return new Promise((resolve, reject) => {
+    if (!db) return reject(new Error('Database not initialized'));
+    
+    const transaction = db.transaction([STORES.NARRATORS], 'readonly');
+    const store = transaction.objectStore(STORES.NARRATORS);
+    const countRequest = store.count();
+    
+    countRequest.onsuccess = () => resolve(countRequest.result);
+    countRequest.onerror = () => reject(new Error('Failed to count narrators'));
+  });
+}
+
+// Import initial data from CSV file with web worker for non-blocking operation
+async function importInitialData() {
+  try {
+    showLoader('Downloading data file...');
+    
+    // Fetch CSV file
+    const response = await fetch('all_rawis.csv');
+    if (!response.ok) throw new Error('Failed to fetch CSV file');
+    
+    const csvText = await response.text();
+    
+    if (window.Worker) {
+      // Use web worker for non-blocking CSV parsing
+      await importCSVWithWorker(csvText);
+    } else {
+      // Fallback to standard import
+      await importCSV(csvText);
+    }
+    
+    // Load all narrators into memory
+    narrators = await getAllNarrators();
+    console.log(`Loaded ${narrators.length} narrators into memory`);
+    
+    // Mark as imported
+    await saveSetting('dataImported', true);
+  } catch (error) {
+    console.error('Import error:', error);
+    showError('Failed to import initial data. Please refresh and try again.');
+  }
+}
+
+// Import CSV using web worker
+function importCSVWithWorker(csvText) {
+  return new Promise((resolve, reject) => {
+    // Create inline worker with blob URL
+    const workerCode = `
+      self.onmessage = function(e) {
+        const csvText = e.data;
+        const lines = csvText.split('\\n');
+        if (lines.length < 2) {
+          self.postMessage({ error: 'Invalid CSV format' });
+          return;
+        }
+        
+        const headers = lines[0].split(',');
+        const totalLines = lines.length - 1;
+        
+        // Process in chunks
+        const chunkSize = 100;
+        const totalChunks = Math.ceil(totalLines / chunkSize);
+        
+        for (let chunk = 0; chunk < totalChunks; chunk++) {
+          const narrators = [];
+          const start = chunk * chunkSize + 1; // Skip header
+          const end = Math.min(start + chunkSize, lines.length);
+          
+          for (let i = start; i < end; i++) {
+            if (!lines[i] || !lines[i].trim()) continue;
+            
+            try {
+              const values = parseCSVLine(lines[i]);
+              const narrator = {};
+              
+              // Map CSV values to object properties
+              headers.forEach((header, index) => {
+                narrator[header.trim()] = values[index] || '';
+              });
+              
+              // Ensure scholar_indx is numeric
+              if (narrator.scholar_indx) {
+                narrator.scholar_indx = parseInt(narrator.scholar_indx, 10) || narrator.scholar_indx;
+              }
+              
+              narrators.push(narrator);
+            } catch (error) {
+              console.warn(\`Error parsing line \${i}\`);
+            }
+          }
+          
+          self.postMessage({
+            chunk: chunk,
+            totalChunks: totalChunks,
+            narrators: narrators
+          });
+        }
+        
+        self.postMessage({ done: true });
+      };
+      
+      function parseCSVLine(line) {
+        const result = [];
+        let inQuotes = false;
+        let currentValue = '';
+        
+        for (let i = 0; i < line.length; i++) {
+          const char = line[i];
+          
+          if (char === '"') {
+            inQuotes = !inQuotes;
+          } else if (char === ',' && !inQuotes) {
+            result.push(currentValue);
+            currentValue = '';
+          } else {
+            currentValue += char;
+          }
+        }
+        
+        // Add the last value
+        result.push(currentValue);
+        
+        return result;
+      }
+    `;
+    
+    const blob = new Blob([workerCode], { type: 'application/javascript' });
+    const worker = new Worker(URL.createObjectURL(blob));
+    
+    worker.onmessage = async function(e) {
+      if (e.data.error) {
+        reject(new Error(e.data.error));
+        worker.terminate();
+        return;
+      }
+      
+      if (e.data.done) {
+        resolve();
+        worker.terminate();
+        return;
+      }
+      
+      // Update progress
+      updateLoader(`Importing data (${Math.round((e.data.chunk / e.data.totalChunks) * 100)}%)...`);
+      
+      // Save chunk to database
+      try {
+        await saveNarrators(e.data.narrators);
+      } catch (error) {
+        console.error('Error saving narrators:', error);
+      }
+    };
+    
+    worker.onerror = function(error) {
+      reject(error);
+      worker.terminate();
+    };
+    
+    worker.postMessage(csvText);
+  });
+}
+
+// Standard CSV import (fallback)
+async function importCSV(csvText) {
+  const lines = csvText.split('\n');
+  if (lines.length < 2) throw new Error('Invalid CSV format');
+  
   const headers = lines[0].split(',');
   const totalLines = lines.length - 1;
-
-  // Process in chunks of 50 items
-  const CHUNK_SIZE = 50;
-  const TOTAL_CHUNKS = Math.ceil(totalLines / CHUNK_SIZE);
-
-  // Update progress modal
-  updateImportProgress(0, TOTAL_CHUNKS);
-
-  for (let chunk = 0; chunk < TOTAL_CHUNKS; chunk++) {
+  
+  // Process in chunks to prevent UI freezing
+  const chunkSize = 50;
+  const totalChunks = Math.ceil(totalLines / chunkSize);
+  
+  for (let chunk = 0; chunk < totalChunks; chunk++) {
+    // Update progress
+    updateLoader(`Importing data (${Math.round((chunk / totalChunks) * 100)}%)...`);
+    
+    // Process chunk
     const narratorsToAdd = [];
-    // Calculate the start and end indices for this chunk
-    const start = 1 + chunk * CHUNK_SIZE; // Start after header
-    const end = Math.min(start + CHUNK_SIZE, lines.length);
-
+    const start = chunk * chunkSize + 1; // Skip header
+    const end = Math.min(start + chunkSize, lines.length);
+    
     for (let i = start; i < end; i++) {
+      if (!lines[i] || !lines[i].trim()) continue;
+      
       try {
-        const values = lines[i].split(',');
+        const values = parseCSVLine(lines[i]);
         const narrator = {};
-        for (let j = 0; j < headers.length; j++) {
-          narrator[headers[j]] = values[j] || '';
+        
+        // Map CSV values to object properties
+        headers.forEach((header, index) => {
+          narrator[header.trim()] = values[index] || '';
+        });
+        
+        // Ensure scholar_indx is numeric
+        if (narrator.scholar_indx) {
+          narrator.scholar_indx = parseInt(narrator.scholar_indx, 10) || narrator.scholar_indx;
         }
+        
         narratorsToAdd.push(narrator);
-      } catch (e) {
-        console.warn(`Error parsing line ${i}:`, e);
+      } catch (error) {
+        console.warn(`Error parsing line ${i}:`, error);
       }
     }
-
-    // Save the current chunk
-    await saveNarrators(narratorsToAdd);
-
-    // Update progress
-    updateImportProgress(chunk + 1, TOTAL_CHUNKS);
-
-    // Allow UI to update by yielding to the event loop
+    
+    // Save chunk to database
+    if (narratorsToAdd.length > 0) {
+      await saveNarrators(narratorsToAdd);
+    }
+    
+    // Yield to UI thread
     await new Promise(resolve => setTimeout(resolve, 0));
   }
 }
 
-
-// Update the import progress modal
-function updateImportProgress(current, total) {
-  const progressEl = document.getElementById('import-progress-bar');
-  const percentEl = document.getElementById('import-progress-percent');
+// Parse CSV line handling quotes correctly
+function parseCSVLine(line) {
+  const result = [];
+  let inQuotes = false;
+  let currentValue = '';
   
-  if (progressEl && percentEl) {
-    const percent = Math.round((current / total) * 100);
-    progressEl.style.width = `${percent}%`;
-    percentEl.textContent = `${percent}%`;
-  }
-}
-
-// Show loading indicator
-function showLoadingIndicator() {
-  // Create if not exists
-  if (!document.getElementById('app-loading-indicator')) {
-    const loadingDiv = document.createElement('div');
-    loadingDiv.id = 'app-loading-indicator';
-    loadingDiv.innerHTML = `
-      
-      
-        Loading application...
-        ایپلیکیشن لوڈ ہو رہی ہے...
-      
-    `;
-    document.body.appendChild(loadingDiv);
-  }
-  
-  document.getElementById('app-loading-indicator').style.display = 'flex';
-}
-
-// Hide loading indicator
-function hideLoadingIndicator() {
-  const indicator = document.getElementById('app-loading-indicator');
-  if (indicator) {
-    indicator.style.opacity = '0';
-    setTimeout(() => {
-      indicator.style.display = 'none';
-    }, 500);
-  }
-}
-
-function saveNarrators(narrators) {
-  return new Promise((resolve, reject) => {
-    if (!narrators || narrators.length === 0) {
-      resolve();
-      return;
+  for (let i = 0; i < line.length; i++) {
+    const char = line[i];
+    
+    if (char === '"') {
+      inQuotes = !inQuotes;
+    } else if (char === ',' && !inQuotes) {
+      result.push(currentValue);
+      currentValue = '';
+    } else {
+      currentValue += char;
     }
+  }
+  
+  // Add the last value
+  result.push(currentValue);
+  
+  return result;
+}
 
-    const transaction = db.transaction([NARRATORS_STORE], 'readwrite');
-    const store = transaction.objectStore(NARRATORS_STORE);
-
+// Save narrators to database
+function saveNarrators(narratorsToSave) {
+  return new Promise((resolve, reject) => {
+    if (!db) return reject(new Error('Database not initialized'));
+    if (!narratorsToSave || narratorsToSave.length === 0) return resolve();
+    
+    const transaction = db.transaction([STORES.NARRATORS], 'readwrite');
+    const store = transaction.objectStore(STORES.NARRATORS);
+    
+    // Track completion
     let completed = 0;
-    narrators.forEach(narrator => {
-      // Ensure scholar_indx is a number if possible
-      if (typeof narrator.scholar_indx === 'string') {
-        const parsed = parseInt(narrator.scholar_indx, 10);
-        if (!isNaN(parsed)) {
-          narrator.scholar_indx = parsed;
-        }
-      }
-
+    
+    // Add each narrator
+    narratorsToSave.forEach(narrator => {
       const request = store.put(narrator);
+      
       request.onsuccess = () => {
         completed++;
-        if (completed === narrators.length) {
-          resolve();
-        }
+        if (completed === narratorsToSave.length) resolve();
       };
-      request.onerror = (event) => {
+      
+      request.onerror = event => {
         console.error('Error saving narrator:', event.target.error);
         completed++;
-        if (completed === narrators.length) {
-          resolve(); // Resolves even if there are errors; change to reject if you want to fail on error
-        }
+        if (completed === narratorsToSave.length) resolve();
       };
     });
-
-    transaction.onerror = (event) => reject(event.target.error);
-    // transaction.oncomplete is not strictly necessary here, as we resolve per record
+    
+    // Handle transaction errors
+    transaction.onerror = event => reject(event.target.error);
   });
 }
 
-
-// Settings management
+// Load settings
 async function loadSettings() {
-  currentLanguage = await getSettingValue('language') || 'en';
-  currentTheme = await getSettingValue('theme') || 'light';
-  
-  document.body.className = `${currentTheme}-theme`;
-  document.documentElement.lang = currentLanguage;
-  document.documentElement.dir = currentLanguage === 'ur' ? 'rtl' : 'ltr';
+  try {
+    // Load language setting
+    const savedLanguage = await getSetting('language');
+    if (savedLanguage) currentLanguage = savedLanguage;
+    
+    // Load theme setting
+    const savedTheme = await getSetting('theme');
+    if (savedTheme) currentTheme = savedTheme;
+  } catch (error) {
+    console.error('Error loading settings:', error);
+    // Use defaults if settings can't be loaded
+  }
 }
 
-async function updateSetting(key, value) {
+// Get a setting from database
+function getSetting(key) {
   return new Promise((resolve, reject) => {
-    const transaction = db.transaction([SETTINGS_STORE], 'readwrite');
-    const store = transaction.objectStore(SETTINGS_STORE);
+    if (!db) return reject(new Error('Database not initialized'));
     
-    const request = store.put({ key, value });
-    
-    request.onsuccess = () => resolve();
-    request.onerror = (event) => reject(event.target.error);
-  });
-}
-
-async function getSettingValue(key) {
-  return new Promise((resolve, reject) => {
-    const transaction = db.transaction([SETTINGS_STORE], 'readonly');
-    const store = transaction.objectStore(SETTINGS_STORE);
-    
+    const transaction = db.transaction([STORES.SETTINGS], 'readonly');
+    const store = transaction.objectStore(STORES.SETTINGS);
     const request = store.get(key);
     
-    request.onsuccess = (event) => {
+    request.onsuccess = event => {
       const result = event.target.result;
       resolve(result ? result.value : null);
     };
     
-    request.onerror = (event) => reject(event.target.error);
+    request.onerror = event => reject(event.target.error);
   });
 }
 
+// Save a setting to database
+function saveSetting(key, value) {
+  return new Promise((resolve, reject) => {
+    if (!db) return reject(new Error('Database not initialized'));
+    
+    const transaction = db.transaction([STORES.SETTINGS], 'readwrite');
+    const store = transaction.objectStore(STORES.SETTINGS);
+    const request = store.put({ key, value });
+    
+    request.onsuccess = () => resolve();
+    request.onerror = event => reject(event.target.error);
+  });
+}
+
+// Apply language and theme
+function applyLanguageAndTheme() {
+  // Apply language
+  document.documentElement.lang = currentLanguage;
+  document.documentElement.dir = currentLanguage === 'ur' ? 'rtl' : 'ltr';
+  
+  // Apply theme
+  document.body.className = currentTheme === 'dark' ? 'dark-theme' : 'light-theme';
+  
+  // Update UI elements
+  updateLanguageDisplay();
+  updateThemeToggles();
+}
+
+// Update language display
 function updateLanguageDisplay() {
-  // Hide all language specific elements
+  // Hide all language elements
   document.querySelectorAll('.en, .ur').forEach(el => {
     el.style.display = 'none';
   });
   
-  // Show only current language elements
-  document.querySelectorAll(`.${currentLanguage}`).forEach(el => {
+  // Show current language elements
+  document.querySelectorAll('.' + currentLanguage).forEach(el => {
     el.style.display = 'inline-block';
   });
-  
-  // Update language toggle
-  document.getElementById('language-toggle').checked = currentLanguage === 'en';
-  document.getElementById('settings-language-toggle').checked = currentLanguage === 'en';
 }
 
-function updateThemeDisplay() {
-  document.body.className = `${currentTheme}-theme`;
-  document.getElementById('theme-toggle').checked = currentTheme === 'dark';
-  document.getElementById('settings-theme-toggle').checked = currentTheme === 'dark';
+// Update theme toggle buttons
+function updateThemeToggles() {
+  document.querySelectorAll('#theme-toggle, #settings-theme-toggle').forEach(toggle => {
+    toggle.checked = currentTheme === 'dark';
+  });
+  
+  document.querySelectorAll('#language-toggle, #settings-language-toggle').forEach(toggle => {
+    toggle.checked = currentLanguage === 'en';
+  });
 }
 
-// UI population with pagination
-async function populateNarratorsList(filter = {}, page = 1) {
-  const narratorsList = document.getElementById('narrator-list');
-  narratorsList.innerHTML = 'Loading...';
+// Get all narrators
+function getAllNarrators() {
+  return new Promise((resolve, reject) => {
+    if (!db) return reject(new Error('Database not initialized'));
+    
+    const transaction = db.transaction([STORES.NARRATORS], 'readonly');
+    const store = transaction.objectStore(STORES.NARRATORS);
+    const request = store.getAll();
+    
+    request.onsuccess = event => resolve(event.target.result);
+    request.onerror = event => reject(event.target.error);
+  });
+}
+
+// Load narrators list with pagination and filtering
+async function loadNarratorsList(page = 1, filter = {}) {
+  try {
+    showLoader('Loading narrators...');
+    
+    // Use in-memory filtering for better performance
+    const filteredNarrators = filterNarrators(narrators, filter);
+    totalItems = filteredNarrators.length;
+    currentPage = page;
+    
+    // Get current page items
+    const startIndex = (page - 1) * itemsPerPage;
+    const endIndex = startIndex + itemsPerPage;
+    const pageNarrators = filteredNarrators.slice(startIndex, endIndex);
+    
+    // Render list
+    renderNarratorsList(pageNarrators);
+    renderPagination();
+    
+    hideLoader();
+  } catch (error) {
+    console.error('Error loading narrators list:', error);
+    showError('Failed to load narrators. Please try again.');
+    hideLoader();
+  }
+}
+
+// Filter narrators in memory
+function filterNarrators(narrators, filter) {
+  return narrators.filter(narrator => {
+    // Search filter
+    if (filter.search && !narrator.name.toLowerCase().includes(filter.search.toLowerCase())) {
+      return false;
+    }
+    
+    // Generation filter
+    if (filter.generation && narrator.grade !== filter.generation) {
+      return false;
+    }
+    
+    // Interest filter
+    if (filter.interest && (!narrator.area_of_interest || !narrator.area_of_interest.includes(filter.interest))) {
+      return false;
+    }
+    
+    // Tag filter
+    if (filter.tag && (!narrator.tags || !narrator.tags.includes(filter.tag))) {
+      return false;
+    }
+    
+    return true;
+  });
+}
+
+// Populate filter dropdowns with unique values
+function populateFilterOptions() {
+  // Extract unique values
+  const generations = new Set();
+  const interests = new Set();
+  const tags = new Set();
   
-  currentFilter = filter;
-  currentPage = page;
+  narrators.forEach(narrator => {
+    // Add generation
+    if (narrator.grade) {
+      generations.add(narrator.grade);
+    }
+    
+    // Add interests
+    if (narrator.area_of_interest) {
+      narrator.area_of_interest.split(',').forEach(interest => {
+        interests.add(interest.trim());
+      });
+    }
+    
+    // Add tags
+    if (narrator.tags) {
+      narrator.tags.split(',').forEach(tag => {
+        // Extract tag name from format "TagName [TagValue]"
+        const match = tag.match(/\[(.*?)\]/);
+        if (match) {
+          tags.add(match[1]);
+        } else {
+          tags.add(tag.trim());
+        }
+      });
+    }
+  });
   
-  // Get total count first for pagination
-  const allNarrators = await getNarrators(filter, false);
-  totalNarrators = allNarrators.length;
+  // Populate generation dropdown
+  const generationSelect = document.getElementById('generation-filter');
+  if (generationSelect) {
+    generationSelect.innerHTML = '<option value="">All</option>';
+    
+    Array.from(generations).sort().forEach(generation => {
+      const option = document.createElement('option');
+      option.value = generation;
+      option.textContent = generation;
+      generationSelect.appendChild(option);
+    });
+  }
   
-  // Then get just the current page
-  const narrators = await getNarrators(filter, true, page, ITEMS_PER_PAGE);
+  // Populate interest dropdown
+  const interestSelect = document.getElementById('interest-filter');
+  if (interestSelect) {
+    interestSelect.innerHTML = '<option value="">All</option>';
+    
+    Array.from(interests).sort().forEach(interest => {
+      const option = document.createElement('option');
+      option.value = interest;
+      option.textContent = interest;
+      interestSelect.appendChild(option);
+    });
+  }
   
-  narratorsList.innerHTML = '';
+  // Populate tag dropdown
+  const tagSelect = document.getElementById('tag-filter');
+  if (tagSelect) {
+    tagSelect.innerHTML = '<option value="">All</option>';
+    
+    Array.from(tags).sort().forEach(tag => {
+      const option = document.createElement('option');
+      option.value = tag;
+      option.textContent = tag;
+      tagSelect.appendChild(option);
+    });
+  }
+}
+
+// Render narrators list
+function renderNarratorsList(narrators) {
+  const container = document.getElementById('narrator-list');
+  if (!container) return;
   
+  // Clear container
+  container.innerHTML = '';
+  
+  // Handle empty state
   if (narrators.length === 0) {
-    narratorsList.innerHTML = `
-      
-        No narrators found
-        کوئی راوی نہیں ملا
-      
+    container.innerHTML = `
+      <div class="narrator-placeholder">
+        <p class="en">No narrators found</p>
+        <p class="ur">کوئی راوی نہیں ملا</p>
+      </div>
     `;
     return;
   }
   
+  // Create narrator items
   narrators.forEach(narrator => {
     const item = document.createElement('div');
-    item.className = 'narrator-item slide-in';
+    item.className = 'narrator-item';
     item.dataset.id = narrator.scholar_indx;
-    item.innerHTML = `${narrator.name}`;
+    item.innerHTML = narrator.name;
     
+    // Add click handler
     item.addEventListener('click', () => {
+      // Remove active class from all items
       document.querySelectorAll('.narrator-item').forEach(el => {
         el.classList.remove('active');
       });
+      
+      // Add active class to clicked item
       item.classList.add('active');
-      displayNarratorDetails(narrator);
+      
+      // Show narrator details
+      showNarratorDetails(narrator);
     });
     
-    narratorsList.appendChild(item);
+    container.appendChild(item);
   });
-  
-  // Add pagination controls
-  addPaginationControls(narratorsList);
-  
-  updateLanguageDisplay();
 }
 
-// Add pagination controls
-function addPaginationControls(container) {
-  const totalPages = Math.ceil(totalNarrators / ITEMS_PER_PAGE);
+// Render pagination controls
+function renderPagination() {
+  const container = document.getElementById('narrator-list');
+  if (!container) return;
   
-  if (totalPages)  {
+  // Calculate pages
+  const totalPages = Math.ceil(totalItems / itemsPerPage);
+  if (totalPages <= 1) return;
+  
+  // Create pagination container
+  const pagination = document.createElement('div');
+  pagination.className = 'pagination';
+  
+  // Previous button
+  const prevBtn = document.createElement('button');
+  prevBtn.className = 'btn pagination-btn';
+  prevBtn.innerHTML = '&laquo;';
+  prevBtn.disabled = currentPage === 1;
+  prevBtn.addEventListener('click', () => {
     if (currentPage > 1) {
-      populateNarratorsList(currentFilter, currentPage - 1);
+      loadNarratorsList(currentPage - 1, getCurrentFilters());
     }
   });
   
@@ -1423,199 +1633,160 @@ function addPaginationControls(container) {
   nextBtn.innerHTML = '&raquo;';
   nextBtn.disabled = currentPage === totalPages;
   nextBtn.addEventListener('click', () => {
-    if (currentPage Page ${currentPage} of ${totalPages}
-    صفحہ ${currentPage} از ${totalPages}
+    if (currentPage < totalPages) {
+      loadNarratorsList(currentPage + 1, getCurrentFilters());
+    }
+  });
+  
+  // Page info
+  const pageInfo = document.createElement('span');
+  pageInfo.className = 'page-info';
+  pageInfo.innerHTML = `
+    <span class="en">Page ${currentPage} of ${totalPages}</span>
+    <span class="ur">صفحہ ${currentPage} از ${totalPages}</span>
   `;
   
-  paginationDiv.appendChild(prevBtn);
-  paginationDiv.appendChild(pageInfo);
-  paginationDiv.appendChild(nextBtn);
+  // Add to container
+  pagination.appendChild(prevBtn);
+  pagination.appendChild(pageInfo);
+  pagination.appendChild(nextBtn);
   
-  container.appendChild(paginationDiv);
+  container.appendChild(pagination);
+  
+  // Update language display
+  updateLanguageDisplay();
 }
 
-// Optimize filters to load lazily
-async function populateFilters() {
-  // Use a sample of narrators instead of processing all
-  // This improves performance significantly
-  const sampleSize = 100;
-  const narrators = await getSampleNarrators(sampleSize);
+// Get current filters from UI
+function getCurrentFilters() {
+  const filter = {};
   
-  const generations = new Set();
-  const interests = new Set();
-  const tags = new Set();
-  const categories = await getAllCategories();
-  
-  narrators.forEach(narrator => {
-    if (narrator.grade) generations.add(narrator.grade);
-    
-    if (narrator.area_of_interest) {
-      narrator.area_of_interest.split(', ').forEach(interest => {
-        interests.add(interest.trim());
-      });
-    }
-    
-    if (narrator.tags) {
-      narrator.tags.split(', ').forEach(tag => {
-        const match = tag.match(/\[(.*?)\]/);
-        if (match) {
-          tags.add(match[1]);
-        }
-      });
-    }
-  });
-  
-  const generationFilter = document.getElementById('generation-filter');
-  const interestFilter = document.getElementById('interest-filter');
-  const tagFilter = document.getElementById('tag-filter');
-  const categoryFilter = document.getElementById('category-filter');
-  
-  generationFilter.innerHTML = 'All';
-  interestFilter.innerHTML = 'All';
-  tagFilter.innerHTML = 'All';
-  categoryFilter.innerHTML = 'All';
-  
-  generations.forEach(gen => {
-    generationFilter.innerHTML += `${gen}`;
-  });
-  
-  interests.forEach(interest => {
-    interestFilter.innerHTML += `${interest}`;
-  });
-  
-  tags.forEach(tag => {
-    tagFilter.innerHTML += `${tag}`;
-  });
-  
-  categories.forEach(category => {
-    categoryFilter.innerHTML += `${category.name}`;
-  });
-}
-
-// Get a sample of narrators for filtering
-async function getSampleNarrators(sampleSize) {
-  return new Promise((resolve, reject) => {
-    const transaction = db.transaction([NARRATORS_STORE], 'readonly');
-    const store = transaction.objectStore(NARRATORS_STORE);
-    const request = store.openCursor();
-    
-    const narrators = [];
-    let count = 0;
-    
-    request.onsuccess = (event) => {
-      const cursor = event.target.result;
-      
-      if (cursor && count  reject(event.target.error);
-  });
-}
-
-function displayNarratorDetails(narrator) {
-  currentNarrator = narrator;
-  
-  document.querySelector('.narrator-placeholder').classList.add('hidden');
-  document.querySelector('.narrator-content').classList.remove('hidden');
-  
-  document.getElementById('narrator-name').textContent = narrator.name;
-  document.getElementById('narrator-grade').textContent = narrator.grade || 'N/A';
-  document.getElementById('narrator-birth').textContent = narrator.birth_date_place || 'N/A';
-  document.getElementById('narrator-death').textContent = narrator.death_date_place || 'N/A';
-  document.getElementById('narrator-places').textContent = narrator.places_of_stay || 'N/A';
-  
-  document.getElementById('narrator-parents').textContent = narrator.parents || 'N/A';
-  document.getElementById('narrator-spouse').textContent = narrator.spouse || 'N/A';
-  document.getElementById('narrator-siblings').textContent = narrator.siblings || 'N/A';
-  document.getElementById('narrator-children').textContent = narrator.children || 'N/A';
-  document.getElementById('narrator-teachers').textContent = narrator.teachers || 'N/A';
-  document.getElementById('narrator-students').textContent = narrator.students || 'N/A';
-  
-  checkBookmarkStatus();
-  loadNarratorNotes();
-  
-  // Delay visualization to prevent UI hanging
-  setTimeout(generateVisualizations, 100);
-}
-
-async function checkBookmarkStatus() {
-  const bookmarkBtn = document.getElementById('bookmark-btn');
-  const isBookmarked = await isNarratorBookmarked(currentNarrator.scholar_indx);
-  
-  bookmarkBtn.innerHTML = isBookmarked
-    ? 'bookmark'
-    : 'bookmark_border';
-}
-
-async function loadNarratorNotes() {
-  const notesContainer = document.getElementById('notes-container');
-  notesContainer.innerHTML = '';
-  
-  const notes = await getNarratorNotes(currentNarrator.scholar_indx);
-  
-  if (notes.length === 0) {
-    notesContainer.innerHTML = `
-      
-        No notes added yet
-        ابھی تک کوئی نوٹ نہیں شامل کیا گیا
-      
-    `;
-    return;
+  // Search filter
+  const searchInput = document.getElementById('search-input');
+  if (searchInput && searchInput.value.trim()) {
+    filter.search = searchInput.value.trim();
   }
   
-  notes.forEach(note => {
-    const noteEl = document.createElement('div');
-    noteEl.className = 'note-item fade-in';
-    noteEl.innerHTML = `
-      ${note.text}
-      
-        
-          delete
-        
-      
-    `;
-    
-    notesContainer.appendChild(noteEl);
-  });
+  // Generation filter
+  const generationSelect = document.getElementById('generation-filter');
+  if (generationSelect && generationSelect.value) {
+    filter.generation = generationSelect.value;
+  }
+  
+  // Interest filter
+  const interestSelect = document.getElementById('interest-filter');
+  if (interestSelect && interestSelect.value) {
+    filter.interest = interestSelect.value;
+  }
+  
+  // Tag filter
+  const tagSelect = document.getElementById('tag-filter');
+  if (tagSelect && tagSelect.value) {
+    filter.tag = tagSelect.value;
+  }
+  
+  return filter;
 }
 
+// Show narrator details
+function showNarratorDetails(narrator) {
+  currentNarrator = narrator;
+  
+  // Show details container and hide placeholder
+  const placeholder = document.querySelector('.narrator-placeholder');
+  const content = document.querySelector('.narrator-content');
+  
+  if (placeholder && content) {
+    placeholder.classList.add('hidden');
+    content.classList.remove('hidden');
+  }
+  
+  // Update basic info
+  updateElementText('narrator-name', narrator.name);
+  updateElementText('narrator-grade', narrator.grade || 'N/A');
+  updateElementText('narrator-birth', narrator.birth_date_place || 'N/A');
+  updateElementText('narrator-death', narrator.death_date_place || 'N/A');
+  updateElementText('narrator-places', narrator.places_of_stay || 'N/A');
+  
+  // Update relationships
+  updateElementText('narrator-parents', narrator.parents || 'N/A');
+  updateElementText('narrator-spouse', narrator.spouse || 'N/A');
+  updateElementText('narrator-siblings', narrator.siblings || 'N/A');
+  updateElementText('narrator-children', narrator.children || 'N/A');
+  updateElementText('narrator-teachers', narrator.teachers || 'N/A');
+  updateElementText('narrator-students', narrator.students || 'N/A');
+  
+  // Update bookmark status
+  updateBookmarkStatus();
+  
+  // Load notes
+  loadNarratorNotes();
+  
+  // Generate visualizations after a delay to prevent UI lag
+  setTimeout(() => {
+    generateVisualizations();
+  }, 100);
+}
+
+// Helper to update element text content
+function updateElementText(elementId, text) {
+  const element = document.getElementById(elementId);
+  if (element) {
+    element.textContent = text;
+  }
+}
+
+// Generate visualizations
 function generateVisualizations() {
-  // This is a simplified visualization
+  if (!currentNarrator) return;
+  
+  // Get active tab
+  const activeTab = document.querySelector('.tab.active');
+  if (activeTab && activeTab.dataset.tab !== 'visualization') {
+    return; // Don't generate if visualization tab is not active
+  }
+  
   const treeViz = document.getElementById('tree-visualization');
   const graphViz = document.getElementById('graph-visualization');
   
   if (!treeViz || !graphViz) return;
   
-  // Generate tree visualization
+  // Tree visualization
   treeViz.innerHTML = `
-    
-      
+    <svg width="100%" height="100%" viewBox="0 0 1000 400">
+      <g transform="translate(500, 50)">
+        <!-- Center node (current narrator) -->
+        <circle cx="0" cy="0" r="30" fill="${currentTheme === 'dark' ? '#42a5f5' : '#1976d2'}" />
+        <text x="0" y="5" text-anchor="middle" fill="white" font-size="12">${currentNarrator.name.slice(0, 10)}...</text>
         
-        ${currentNarrator.name.slice(0, 10)}...
-        
-        
+        <!-- Teachers -->
         ${generateTreeNodes(parseRelationships(currentNarrator.teachers), -200, 100, 'Teachers')}
         
-        
+        <!-- Students -->
         ${generateTreeNodes(parseRelationships(currentNarrator.students), 200, 100, 'Students')}
         
-        
+        <!-- Children -->
         ${generateTreeNodes(parseRelationships(currentNarrator.children), 0, 150, 'Children')}
-      
-    
+      </g>
+    </svg>
   `;
   
-  // Generate graph visualization
+  // Graph visualization
   graphViz.innerHTML = `
-    
-      
+    <svg width="100%" height="100%" viewBox="0 0 1000 400">
+      <g transform="translate(500, 200)">
+        <!-- Center node (current narrator) -->
+        <circle cx="0" cy="0" r="40" fill="${currentTheme === 'dark' ? '#42a5f5' : '#1976d2'}" />
+        <text x="0" y="5" text-anchor="middle" fill="white" font-size="14">${currentNarrator.name.slice(0, 10)}...</text>
         
-        ${currentNarrator.name.slice(0, 10)}...
-        
-        
+        <!-- Relationships -->
         ${generateGraphConnections()}
-      
-    
+      </g>
+    </svg>
   `;
 }
 
+// Parse relationship strings
 function parseRelationships(relationshipString) {
   if (!relationshipString) return [];
   
@@ -1624,6 +1795,7 @@ function parseRelationships(relationshipString) {
     .filter(name => name && name !== 'NA' && name !== 'others');
 }
 
+// Generate tree nodes
 function generateTreeNodes(items, xOffset, yOffset, labelText) {
   if (items.length === 0) return '';
   
@@ -1632,8 +1804,8 @@ function generateTreeNodes(items, xOffset, yOffset, labelText) {
   const angleStep = Math.PI / (displayItems.length + 1);
   
   let result = `
-    ${labelText}
-    
+    <text x="${xOffset}" y="${yOffset - 60}" text-anchor="middle" fill="${currentTheme === 'dark' ? '#f5f5f5' : '#212121'}" font-size="14">${labelText}</text>
+    <path d="M 0 0 L ${xOffset} ${yOffset - 20}" stroke="${currentTheme === 'dark' ? '#4dd0e1' : '#00acc1'}" stroke-width="2" fill="none" />
   `;
   
   displayItems.forEach((item, i) => {
@@ -1642,26 +1814,27 @@ function generateTreeNodes(items, xOffset, yOffset, labelText) {
     const y = yOffset + 80 * Math.sin(angle);
     
     result += `
-      
-      ${item.slice(0, 8)}...
-      
+      <circle cx="${x}" cy="${y}" r="25" fill="${currentTheme === 'dark' ? '#4dd0e1' : '#00acc1'}" />
+      <text x="${x}" y="${y + 5}" text-anchor="middle" fill="white" font-size="10">${item.slice(0, 8)}...</text>
+      <path d="M ${xOffset} ${yOffset - 20} L ${x} ${y}" stroke="${currentTheme === 'dark' ? '#4dd0e1' : '#00acc1'}" stroke-width="1.5" fill="none" />
     `;
   });
   
   if (items.length > maxItems) {
     result += `
-      +${items.length - maxItems} more
+      <text x="${xOffset}" y="${yOffset + 60}" text-anchor="middle" fill="${currentTheme === 'dark' ? '#f5f5f5' : '#212121'}" font-size="12">+${items.length - maxItems} more</text>
     `;
   }
   
   return result;
 }
 
+// Generate graph connections
 function generateGraphConnections() {
   const relationships = [
-    ...parseRelationships(currentNarrator.teachers),
-    ...parseRelationships(currentNarrator.students),
-    ...parseRelationships(currentNarrator.children)
+    ...parseRelationships(currentNarrator.teachers || ''),
+    ...parseRelationships(currentNarrator.students || ''),
+    ...parseRelationships(currentNarrator.children || '')
   ];
   
   if (relationships.length === 0) return '';
@@ -1677,143 +1850,522 @@ function generateGraphConnections() {
     const x = radius * Math.cos(angle);
     const y = radius * Math.sin(angle);
     
-    const relationshipType = 
-      currentNarrator.teachers && currentNarrator.teachers.includes(item) ? 'Teacher' :
-      currentNarrator.students && currentNarrator.students.includes(item) ? 'Student' : 'Family';
+    // Determine relationship type
+    let relationshipType = 'Family';
+    let color = '#ffa000';
     
-    const color = 
-      relationshipType === 'Teacher' ? '#e53935' :
-      relationshipType === 'Student' ? '#43a047' : '#ffa000';
+    if (currentNarrator.teachers && currentNarrator.teachers.includes(item)) {
+      relationshipType = 'Teacher';
+      color = '#e53935';
+    } else if (currentNarrator.students && currentNarrator.students.includes(item)) {
+      relationshipType = 'Student';
+      color = '#43a047';
+    }
     
     result += `
-      
-      ${item.slice(0, 8)}...
-      ${relationshipType}
-      
+      <circle cx="${x}" cy="${y}" r="30" fill="${color}" />
+      <text x="${x}" y="${y - 5}" text-anchor="middle" fill="white" font-size="10">${item.slice(0, 8)}...</text>
+      <text x="${x}" y="${y + 10}" text-anchor="middle" fill="white" font-size="8">${relationshipType}</text>
+      <path d="M 0 0 L ${x} ${y}" stroke="${color}" stroke-width="1.5" stroke-dasharray="5,3" fill="none" />
     `;
   });
   
   if (relationships.length > maxNodes) {
     result += `
-      +${relationships.length - maxNodes} more connections
+      <text x="0" y="${radius + 50}" text-anchor="middle" fill="${currentTheme === 'dark' ? '#f5f5f5' : '#212121'}" font-size="14">+${relationships.length - maxNodes} more connections</text>
     `;
   }
   
   return result;
 }
 
-// Data access functions with pagination
-async function getNarrators(filter = {}, paginate = true, page = 1, itemsPerPage = ITEMS_PER_PAGE) {
+// Update bookmark status
+async function updateBookmarkStatus() {
+  if (!currentNarrator) return;
+  
+  const bookmarkBtn = document.getElementById('bookmark-btn');
+  if (!bookmarkBtn) return;
+  
+  const isBookmarked = await isNarratorBookmarked(currentNarrator.scholar_indx);
+  
+  bookmarkBtn.innerHTML = isBookmarked
+    ? '<span class="material-icons">bookmark</span>'
+    : '<span class="material-icons">bookmark_border</span>';
+}
+
+// Check if narrator is bookmarked
+function isNarratorBookmarked(narratorId) {
   return new Promise((resolve, reject) => {
-    const transaction = db.transaction([NARRATORS_STORE], 'readonly');
-    const store = transaction.objectStore(NARRATORS_STORE);
-    const request = store.openCursor();
+    if (!db) return reject(new Error('Database not initialized'));
     
-    const narrators = [];
-    let skipCount = 0;
-    let currentCount = 0;
+    const transaction = db.transaction([STORES.BOOKMARKS], 'readonly');
+    const store = transaction.objectStore(STORES.BOOKMARKS);
+    const request = store.get(narratorId);
     
-    // Calculate items to skip based on page
-    const skip = paginate ? (page - 1) * itemsPerPage : 0;
-    // Max items to take
-    const take = paginate ? itemsPerPage : Number.MAX_SAFE_INTEGER;
+    request.onsuccess = event => {
+      resolve(!!event.target.result);
+    };
     
-    request.onsuccess = (event) => {
-      const cursor = event.target.result;
-      
-      if (cursor) {
-        const narrator = cursor.value;
-        let matches = true;
-        
-        // Apply filters
-        if (filter.search && !narrator.name.toLowerCase().includes(filter.search.toLowerCase())) {
-          matches = false;
-        }
-        
-        if (filter.generation && narrator.grade !== filter.generation) {
-          matches = false;
-        }
-        
-        if (filter.interest && (!narrator.area_of_interest || !narrator.area_of_interest.includes(filter.interest))) {
-          matches = false;
-        }
-        
-        if (filter.tag && (!narrator.tags || !narrator.tags.includes(filter.tag))) {
-          matches = false;
-        }
-        
-        if (matches) {
-          if (skipCount  reject(event.target.error);
+    request.onerror = event => {
+      console.error('Error checking bookmark:', event.target.error);
+      resolve(false);
+    };
   });
 }
 
-async function getAllNarrators() {
-  return new Promise((resolve, reject) => {
-    const transaction = db.transaction([NARRATORS_STORE], 'readonly');
-    const store = transaction.objectStore(NARRATORS_STORE);
-    const request = store.getAll();
+// Load narrator notes
+async function loadNarratorNotes() {
+  if (!currentNarrator) return;
+  
+  const notesContainer = document.getElementById('notes-container');
+  if (!notesContainer) return;
+  
+  // Clear container
+  notesContainer.innerHTML = '';
+  
+  // Get notes
+  const notes = await getNarratorNotes(currentNarrator.scholar_indx);
+  
+  // Handle empty state
+  if (notes.length === 0) {
+    notesContainer.innerHTML = `
+      <div class="note-placeholder">
+        <p class="en">No notes added yet</p>
+        <p class="ur">ابھی تک کوئی نوٹ نہیں شامل کیا گیا</p>
+      </div>
+    `;
+    return;
+  }
+  
+  // Render notes
+  notes.forEach(note => {
+    const noteEl = document.createElement('div');
+    noteEl.className = 'note-item';
+    noteEl.innerHTML = `
+      <div>${note.text}</div>
+      <div class="note-actions">
+        <button class="btn" data-note-id="${note.id}" data-action="delete-note">
+          <span class="material-icons">delete</span>
+        </button>
+      </div>
+    `;
     
-    request.onsuccess = (event) => resolve(event.target.result);
-    request.onerror = (event) => reject(event.target.error);
+    notesContainer.appendChild(noteEl);
   });
 }
 
-async function getNarratorById(id) {
+// Get narrator notes
+function getNarratorNotes(narratorId) {
   return new Promise((resolve, reject) => {
-    const transaction = db.transaction([NARRATORS_STORE], 'readonly');
-    const store = transaction.objectStore(NARRATORS_STORE);
-    const request = store.get(id);
+    if (!db) return reject(new Error('Database not initialized'));
     
-    request.onsuccess = (event) => resolve(event.target.result);
-    request.onerror = (event) => reject(event.target.error);
-  });
-}
-
-async function getNarratorNotes(narratorId) {
-  return new Promise((resolve, reject) => {
-    const transaction = db.transaction([NOTES_STORE], 'readonly');
-    const store = transaction.objectStore(NOTES_STORE);
+    const transaction = db.transaction([STORES.NOTES], 'readonly');
+    const store = transaction.objectStore(STORES.NOTES);
     const index = store.index('narrator_id');
     const request = index.getAll(narratorId);
     
-    request.onsuccess = (event) => resolve(event.target.result);
-    request.onerror = (event) => reject(event.target.error);
+    request.onsuccess = event => {
+      resolve(event.target.result || []);
+    };
+    
+    request.onerror = event => {
+      console.error('Error getting notes:', event.target.error);
+      resolve([]);
+    };
   });
 }
 
-async function addNote(narratorId, text) {
+// Setup event listeners
+function setupEventListeners() {
+  // Language toggle
+  document.getElementById('language-toggle').addEventListener('change', async e => {
+    currentLanguage = e.target.checked ? 'en' : 'ur';
+    document.getElementById('settings-language-toggle').checked = e.target.checked;
+    await saveSetting('language', currentLanguage);
+    applyLanguageAndTheme();
+  });
+  
+  document.getElementById('settings-language-toggle').addEventListener('change', async e => {
+    currentLanguage = e.target.checked ? 'en' : 'ur';
+    document.getElementById('language-toggle').checked = e.target.checked;
+    await saveSetting('language', currentLanguage);
+    applyLanguageAndTheme();
+  });
+  
+  // Theme toggle
+  document.getElementById('theme-toggle').addEventListener('change', async e => {
+    currentTheme = e.target.checked ? 'dark' : 'light';
+    document.getElementById('settings-theme-toggle').checked = e.target.checked;
+    await saveSetting('theme', currentTheme);
+    applyLanguageAndTheme();
+    
+    // Regenerate visualizations if needed
+    if (currentNarrator) {
+      setTimeout(generateVisualizations, 100);
+    }
+  });
+  
+  document.getElementById('settings-theme-toggle').addEventListener('change', async e => {
+    currentTheme = e.target.checked ? 'dark' : 'light';
+    document.getElementById('theme-toggle').checked = e.target.checked;
+    await saveSetting('theme', currentTheme);
+    applyLanguageAndTheme();
+    
+    // Regenerate visualizations if needed
+    if (currentNarrator) {
+      setTimeout(generateVisualizations, 100);
+    }
+  });
+  
+  // Search with debounce
+  let searchTimeout;
+  const searchInput = document.getElementById('search-input');
+  if (searchInput) {
+    searchInput.addEventListener('keyup', e => {
+      clearTimeout(searchTimeout);
+      searchTimeout = setTimeout(() => {
+        if (e.key === 'Enter') {
+          loadNarratorsList(1, getCurrentFilters());
+        }
+      }, 300); // 300ms debounce
+    });
+  }
+  
+  // Search button
+  const searchBtn = document.getElementById('search-btn');
+  if (searchBtn) {
+    searchBtn.addEventListener('click', () => {
+      loadNarratorsList(1, getCurrentFilters());
+    });
+  }
+  
+  // Filter selects
+  document.querySelectorAll('select[id$="-filter"]').forEach(select => {
+    select.addEventListener('change', () => {
+      loadNarratorsList(1, getCurrentFilters());
+    });
+  });
+  
+  // Tabs
+  document.querySelectorAll('.tab').forEach(tab => {
+    tab.addEventListener('click', () => {
+      // Deactivate all tabs
+      document.querySelectorAll('.tab').forEach(t => {
+        t.classList.remove('active');
+      });
+      
+      // Activate clicked tab
+      tab.classList.add('active');
+      
+      // Hide all tab contents
+      document.querySelectorAll('.tab-content').forEach(content => {
+        content.classList.add('hidden');
+      });
+      
+      // Show selected tab content
+      const tabId = tab.dataset.tab;
+      const tabContent = document.getElementById(`${tabId}-tab`);
+      if (tabContent) {
+        tabContent.classList.remove('hidden');
+      }
+      
+      // Generate visualizations if needed
+      if (tabId === 'visualization' && currentNarrator) {
+        setTimeout(generateVisualizations, 100);
+      }
+    });
+  });
+  
+  // Visualization controls
+  const treeViewBtn = document.getElementById('tree-view-btn');
+  const graphViewBtn = document.getElementById('graph-view-btn');
+  
+  if (treeViewBtn) {
+    treeViewBtn.addEventListener('click', () => {
+      const treeViz = document.getElementById('tree-visualization');
+      const graphViz = document.getElementById('graph-visualization');
+      
+      if (treeViz && graphViz) {
+        treeViz.classList.remove('hidden');
+        graphViz.classList.add('hidden');
+      }
+    });
+  }
+  
+  if (graphViewBtn) {
+    graphViewBtn.addEventListener('click', () => {
+      const treeViz = document.getElementById('tree-visualization');
+      const graphViz = document.getElementById('graph-visualization');
+      
+      if (treeViz && graphViz) {
+        treeViz.classList.add('hidden');
+        graphViz.classList.remove('hidden');
+      }
+    });
+  }
+  
+  // Add note
+  const saveNoteBtn = document.getElementById('save-note-btn');
+  const noteInput = document.getElementById('note-input');
+  
+  if (saveNoteBtn && noteInput) {
+    saveNoteBtn.addEventListener('click', async () => {
+      if (!currentNarrator) return;
+      
+      const noteText = noteInput.value.trim();
+      if (!noteText) return;
+      
+      try {
+        await addNote(currentNarrator.scholar_indx, noteText);
+        noteInput.value = '';
+        await loadNarratorNotes();
+      } catch (error) {
+        console.error('Error adding note:', error);
+        showError('Failed to add note. Please try again.');
+      }
+    });
+  }
+  
+  // Delete note (event delegation)
+  const notesContainer = document.getElementById('notes-container');
+  if (notesContainer) {
+    notesContainer.addEventListener('click', async e => {
+      const deleteBtn = e.target.closest('[data-action="delete-note"]');
+      if (!deleteBtn) return;
+      
+      const noteId = parseInt(deleteBtn.dataset.noteId, 10);
+      if (isNaN(noteId)) return;
+      
+      try {
+        await deleteNote(noteId);
+        await loadNarratorNotes();
+      } catch (error) {
+        console.error('Error deleting note:', error);
+        showError('Failed to delete note. Please try again.');
+      }
+    });
+  }
+  
+  // Bookmark toggle
+  const bookmarkBtn = document.getElementById('bookmark-btn');
+  if (bookmarkBtn) {
+    bookmarkBtn.addEventListener('click', async () => {
+      if (!currentNarrator) return;
+      
+      try {
+        const isBookmarked = await isNarratorBookmarked(currentNarrator.scholar_indx);
+        
+        if (isBookmarked) {
+          await removeBookmark(currentNarrator.scholar_indx);
+        } else {
+          await addBookmark(currentNarrator.scholar_indx);
+        }
+        
+        await updateBookmarkStatus();
+      } catch (error) {
+        console.error('Error toggling bookmark:', error);
+        showError('Failed to update bookmark. Please try again.');
+      }
+    });
+  }
+  
+  // Import/Export buttons
+  const importBtn = document.getElementById('import-btn');
+  const exportBtn = document.getElementById('export-btn');
+  
+  if (importBtn) {
+    importBtn.addEventListener('click', () => {
+      showModal('import-modal');
+    });
+  }
+  
+  if (exportBtn) {
+    exportBtn.addEventListener('click', async () => {
+      try {
+        showLoader('Preparing data for export...');
+        await exportData();
+        hideLoader();
+      } catch (error) {
+        console.error('Export error:', error);
+        showError('Failed to export data. Please try again.');
+        hideLoader();
+      }
+    });
+  }
+  
+  // Import file button
+  const importFileBtn = document.getElementById('import-file-btn');
+  if (importFileBtn) {
+    importFileBtn.addEventListener('click', async () => {
+      const fileInput = document.getElementById('import-file');
+      if (!fileInput || !fileInput.files || !fileInput.files[0]) {
+        showError('Please select a file to import.');
+        return;
+      }
+      
+      const file = fileInput.files[0];
+      
+      try {
+        showLoader('Importing data...');
+        
+        if (file.name.endsWith('.csv')) {
+          const csvText = await readFileAsText(file);
+          await importCSVWithWorker(csvText);
+        } else if (file.name.endsWith('.json')) {
+          const jsonText = await readFileAsText(file);
+          const data = JSON.parse(jsonText);
+          await importFromJson(data);
+        } else {
+          throw new Error('Unsupported file format. Please use CSV or JSON.');
+        }
+        
+        // Reload narrators into memory
+        narrators = await getAllNarrators();
+        
+        // Repopulate filters and list
+        populateFilterOptions();
+        await loadNarratorsList();
+        
+        hideModal('import-modal');
+        hideLoader();
+        
+        alert('Data imported successfully!');
+      } catch (error) {
+        console.error('Import error:', error);
+        showError(`Import failed: ${error.message}`);
+        hideLoader();
+      }
+    });
+  }
+  
+  // Modal close buttons
+  document.querySelectorAll('.modal-close').forEach(closeBtn => {
+    closeBtn.addEventListener('click', () => {
+      const modal = closeBtn.closest('.modal');
+      if (modal) {
+        hideModal(modal.id);
+      }
+    });
+  });
+  
+  // Onboarding buttons
+  const startAppBtn = document.getElementById('start-app-btn');
+  if (startAppBtn) {
+    startAppBtn.addEventListener('click', () => {
+      hideModal('onboarding-modal');
+      showModal('disclaimer-modal');
+    });
+  }
+  
+  const acceptDisclaimerBtn = document.getElementById('accept-disclaimer-btn');
+  if (acceptDisclaimerBtn) {
+    acceptDisclaimerBtn.addEventListener('click', async () => {
+      await saveSetting('hasSeenOnboarding', true);
+      hideModal('disclaimer-modal');
+    });
+  }
+  
+  // Category button
+  const categoryBtn = document.getElementById('category-btn');
+  if (categoryBtn) {
+    categoryBtn.addEventListener('click', () => {
+      if (currentNarrator) {
+        showModal('category-modal');
+      }
+    });
+  }
+  
+  // Settings button
+  const settingsBtn = document.getElementById('settings-btn');
+  if (settingsBtn) {
+    settingsBtn.addEventListener('click', () => {
+      showModal('settings-modal');
+    });
+  }
+  
+  // Reset data button
+  const resetDataBtn = document.getElementById('reset-data-btn');
+  if (resetDataBtn) {
+    resetDataBtn.addEventListener('click', async () => {
+      if (confirm('Are you sure you want to reset all data? This action cannot be undone.')) {
+        try {
+          showLoader('Resetting data...');
+          
+          // Clear all stores
+          await clearStore(STORES.NARRATORS);
+          await clearStore(STORES.NOTES);
+          await clearStore(STORES.BOOKMARKS);
+          
+          // Reimport data
+          const response = await fetch('all_rawis.csv');
+          if (!response.ok) throw new Error('Failed to fetch CSV file');
+          
+          const csvText = await response.text();
+          await importCSVWithWorker(csvText);
+          
+          // Reload narrators into memory
+          narrators = await getAllNarrators();
+          
+          // Repopulate filters and list
+          populateFilterOptions();
+          await loadNarratorsList();
+          
+          hideModal('settings-modal');
+          hideLoader();
+          
+          alert('Data has been reset successfully!');
+        } catch (error) {
+          console.error('Reset error:', error);
+          showError(`Reset failed: ${error.message}`);
+          hideLoader();
+        }
+      }
+    });
+  }
+}
+
+// Add a note
+function addNote(narratorId, text) {
   return new Promise((resolve, reject) => {
-    const transaction = db.transaction([NOTES_STORE], 'readwrite');
-    const store = transaction.objectStore(NOTES_STORE);
+    if (!db) return reject(new Error('Database not initialized'));
+    
+    const transaction = db.transaction([STORES.NOTES], 'readwrite');
+    const store = transaction.objectStore(STORES.NOTES);
     
     const note = {
       narrator_id: narratorId,
-      text,
+      text: text,
       date: new Date().toISOString()
     };
     
     const request = store.add(note);
     
-    request.onsuccess = (event) => resolve(event.target.result);
-    request.onerror = (event) => reject(event.target.error);
+    request.onsuccess = event => resolve(event.target.result);
+    request.onerror = event => reject(event.target.error);
   });
 }
 
-async function deleteNote(noteId) {
+// Delete a note
+function deleteNote(noteId) {
   return new Promise((resolve, reject) => {
-    const transaction = db.transaction([NOTES_STORE], 'readwrite');
-    const store = transaction.objectStore(NOTES_STORE);
+    if (!db) return reject(new Error('Database not initialized'));
+    
+    const transaction = db.transaction([STORES.NOTES], 'readwrite');
+    const store = transaction.objectStore(STORES.NOTES);
     const request = store.delete(noteId);
     
     request.onsuccess = () => resolve();
-    request.onerror = (event) => reject(event.target.error);
+    request.onerror = event => reject(event.target.error);
   });
 }
 
-async function bookmarkNarrator(narratorId) {
+// Add a bookmark
+function addBookmark(narratorId) {
   return new Promise((resolve, reject) => {
-    const transaction = db.transaction([BOOKMARKS_STORE], 'readwrite');
-    const store = transaction.objectStore(BOOKMARKS_STORE);
+    if (!db) return reject(new Error('Database not initialized'));
+    
+    const transaction = db.transaction([STORES.BOOKMARKS], 'readwrite');
+    const store = transaction.objectStore(STORES.BOOKMARKS);
     
     const bookmark = {
       narrator_id: narratorId,
@@ -1823,565 +2375,229 @@ async function bookmarkNarrator(narratorId) {
     const request = store.put(bookmark);
     
     request.onsuccess = () => resolve();
-    request.onerror = (event) => reject(event.target.error);
+    request.onerror = event => reject(event.target.error);
   });
 }
 
-async function unbookmarkNarrator(narratorId) {
+// Remove a bookmark
+function removeBookmark(narratorId) {
   return new Promise((resolve, reject) => {
-    const transaction = db.transaction([BOOKMARKS_STORE], 'readwrite');
-    const store = transaction.objectStore(BOOKMARKS_STORE);
+    if (!db) return reject(new Error('Database not initialized'));
+    
+    const transaction = db.transaction([STORES.BOOKMARKS], 'readwrite');
+    const store = transaction.objectStore(STORES.BOOKMARKS);
     const request = store.delete(narratorId);
     
     request.onsuccess = () => resolve();
-    request.onerror = (event) => reject(event.target.error);
+    request.onerror = event => reject(event.target.error);
   });
 }
 
-async function isNarratorBookmarked(narratorId) {
-  return new Promise((resolve, reject) => {
-    const transaction = db.transaction([BOOKMARKS_STORE], 'readonly');
-    const store = transaction.objectStore(BOOKMARKS_STORE);
-    const request = store.get(narratorId);
-    
-    request.onsuccess = (event) => resolve(!!event.target.result);
-    request.onerror = (event) => reject(event.target.error);
-  });
-}
-
-async function getAllCategories() {
-  return new Promise((resolve, reject) => {
-    const transaction = db.transaction([CATEGORIES_STORE], 'readonly');
-    const store = transaction.objectStore(CATEGORIES_STORE);
-    const request = store.getAll();
-    
-    request.onsuccess = (event) => resolve(event.target.result);
-    request.onerror = (event) => reject(event.target.error);
-  });
-}
-
-async function addCategory(name) {
-  return new Promise((resolve, reject) => {
-    const transaction = db.transaction([CATEGORIES_STORE], 'readwrite');
-    const store = transaction.objectStore(CATEGORIES_STORE);
-    
-    const category = { name };
-    const request = store.add(category);
-    
-    request.onsuccess = (event) => resolve(event.target.result);
-    request.onerror = (event) => reject(event.target.error);
-  });
-}
-
-// Export/Import data
+// Export data
 async function exportData() {
-  try {
-    const narrators = await getAllNarrators();
-    
-    // Get all notes
-    const notes = await new Promise((resolve, reject) => {
-      const transaction = db.transaction([NOTES_STORE], 'readonly');
-      const store = transaction.objectStore(NOTES_STORE);
-      const request = store.getAll();
-      
-      request.onsuccess = (event) => resolve(event.target.result);
-      request.onerror = (event) => reject(event.target.error);
-    });
-    
-    // Get all bookmarks
-    const bookmarks = await new Promise((resolve, reject) => {
-      const transaction = db.transaction([BOOKMARKS_STORE], 'readonly');
-      const store = transaction.objectStore(BOOKMARKS_STORE);
-      const request = store.getAll();
-      
-      request.onsuccess = (event) => resolve(event.target.result);
-      request.onerror = (event) => reject(event.target.error);
-    });
-    
-    const categories = await getAllCategories();
-    
-    const exportData = {
-      narrators,
-      notes,
-      bookmarks,
-      categories,
-      version: DB_VERSION,
-      exportDate: new Date().toISOString()
-    };
-    
-    return exportData;
-  } catch (error) {
-    console.error('Export error:', error);
-    throw error;
-  }
+  // Get all notes
+  const notes = await getAllNotes();
+  
+  // Get all bookmarks
+  const bookmarks = await getAllBookmarks();
+  
+  // Create export object
+  const exportData = {
+    narrators,
+    notes,
+    bookmarks,
+    exportDate: new Date().toISOString(),
+    version: DB_VERSION
+  };
+  
+  // Convert to JSON
+  const json = JSON.stringify(exportData);
+  
+  // Create download link
+  const blob = new Blob([json], { type: 'application/json' });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = `isnad_narrators_export_${new Date().toISOString().slice(0, 10)}.json`;
+  document.body.appendChild(a);
+  a.click();
+  document.body.removeChild(a);
 }
 
-async function importData(data) {
+// Import from JSON
+async function importFromJson(data) {
   if (!data.narrators || !Array.isArray(data.narrators)) {
-    throw new Error('Invalid import data format');
+    throw new Error('Invalid JSON format: narrators array is missing');
   }
   
-  try {
-    // Clear existing data
-    await clearObjectStore(NARRATORS_STORE);
-    await clearObjectStore(NOTES_STORE);
-    await clearObjectStore(BOOKMARKS_STORE);
-    await clearObjectStore(CATEGORIES_STORE);
-    
-    // Import data progressively to prevent UI freezing
-    
-    // Import narrators in chunks
-    const CHUNK_SIZE = 50;
-    const narratorChunks = chunkArray(data.narrators, CHUNK_SIZE);
-    
-    for (let i = 0; i  setTimeout(resolve, 0));
-    }
-    
-    // Import notes in chunks
-    if (data.notes && Array.isArray(data.notes)) {
-      const noteChunks = chunkArray(data.notes, CHUNK_SIZE);
-      
-      for (let i = 0; i  {
-          const transaction = db.transaction([NOTES_STORE], 'readwrite');
-          const store = transaction.objectStore(NOTES_STORE);
-          
-          let count = 0;
-          noteChunks[i].forEach(note => {
-            const request = store.add(note);
-            request.onsuccess = () => {
-              count++;
-              if (count === noteChunks[i].length) {
-                resolve();
-              }
-            };
-            request.onerror = (event) => {
-              console.error('Error importing note:', event.target.error);
-              count++;
-              if (count === noteChunks[i].length) {
-                resolve();
-              }
-            };
-          });
-          
-          transaction.oncomplete = () => resolve();
-          transaction.onerror = (event) => reject(event.target.error);
-        });
-        
-        // Allow UI to update
-        await new Promise(resolve => setTimeout(resolve, 0));
-      }
-    }
-    
-    // Import bookmarks
-    if (data.bookmarks && Array.isArray(data.bookmarks)) {
-      await new Promise((resolve, reject) => {
-        const transaction = db.transaction([BOOKMARKS_STORE], 'readwrite');
-        const store = transaction.objectStore(BOOKMARKS_STORE);
-        
-        let count = 0;
-        data.bookmarks.forEach(bookmark => {
-          const request = store.add(bookmark);
-          request.onsuccess = () => {
-            count++;
-            if (count === data.bookmarks.length) {
-              resolve();
-            }
-          };
-          request.onerror = (event) => {
-            console.error('Error importing bookmark:', event.target.error);
-            count++;
-            if (count === data.bookmarks.length) {
-              resolve();
-            }
-          };
-        });
-        
-        transaction.oncomplete = () => resolve();
-        transaction.onerror = (event) => reject(event.target.error);
-      });
-    }
-    
-    // Import categories
-    if (data.categories && Array.isArray(data.categories)) {
-      await new Promise((resolve, reject) => {
-        const transaction = db.transaction([CATEGORIES_STORE], 'readwrite');
-        const store = transaction.objectStore(CATEGORIES_STORE);
-        
-        let count = 0;
-        data.categories.forEach(category => {
-          const request = store.add(category);
-          request.onsuccess = () => {
-            count++;
-            if (count === data.categories.length) {
-              resolve();
-            }
-          };
-          request.onerror = (event) => {
-            console.error('Error importing category:', event.target.error);
-            count++;
-            if (count === data.categories.length) {
-              resolve();
-            }
-          };
-        });
-        
-        transaction.oncomplete = () => resolve();
-        transaction.onerror = (event) => reject(event.target.error);
-      });
-    }
-    
-    return true;
-  } catch (error) {
-    console.error('Import error:', error);
-    throw error;
+  // Clear existing data
+  await clearStore(STORES.NARRATORS);
+  await clearStore(STORES.NOTES);
+  await clearStore(STORES.BOOKMARKS);
+  
+  // Import narrators in chunks
+  const chunkSize = 100;
+  for (let i = 0; i < data.narrators.length; i += chunkSize) {
+    const chunk = data.narrators.slice(i, i + chunkSize);
+    await saveNarrators(chunk);
+    updateLoader(`Importing narrators ${i + chunk.length}/${data.narrators.length}...`);
+    await new Promise(resolve => setTimeout(resolve, 0)); // Yield to UI
   }
+  
+  // Import notes if present
+  if (data.notes && Array.isArray(data.notes)) {
+    for (let i = 0; i < data.notes.length; i += chunkSize) {
+      const chunk = data.notes.slice(i, i + chunkSize);
+      await saveNotes(chunk);
+      updateLoader(`Importing notes ${i + chunk.length}/${data.notes.length}...`);
+      await new Promise(resolve => setTimeout(resolve, 0)); // Yield to UI
+    }
+  }
+  
+  // Import bookmarks if present
+  if (data.bookmarks && Array.isArray(data.bookmarks)) {
+    for (let i = 0; i < data.bookmarks.length; i += chunkSize) {
+      const chunk = data.bookmarks.slice(i, i + chunkSize);
+      await saveBookmarks(chunk);
+      updateLoader(`Importing bookmarks ${i + chunk.length}/${data.bookmarks.length}...`);
+      await new Promise(resolve => setTimeout(resolve, 0)); // Yield to UI
+    }
+  }
+  
+  return true;
 }
 
-// Helper function to chunk arrays for progressive processing
-function chunkArray(array, chunkSize) {
-  const chunks = [];
-  for (let i = 0; i  {
+// Get all notes
+function getAllNotes() {
+  return new Promise((resolve, reject) => {
+    if (!db) return reject(new Error('Database not initialized'));
+    
+    const transaction = db.transaction([STORES.NOTES], 'readonly');
+    const store = transaction.objectStore(STORES.NOTES);
+    const request = store.getAll();
+    
+    request.onsuccess = event => resolve(event.target.result);
+    request.onerror = event => reject(event.target.error);
+  });
+}
+
+// Get all bookmarks
+function getAllBookmarks() {
+  return new Promise((resolve, reject) => {
+    if (!db) return reject(new Error('Database not initialized'));
+    
+    const transaction = db.transaction([STORES.BOOKMARKS], 'readonly');
+    const store = transaction.objectStore(STORES.BOOKMARKS);
+    const request = store.getAll();
+    
+    request.onsuccess = event => resolve(event.target.result);
+    request.onerror = event => reject(event.target.error);
+  });
+}
+
+// Clear a store
+function clearStore(storeName) {
+  return new Promise((resolve, reject) => {
+    if (!db) return reject(new Error('Database not initialized'));
+    
     const transaction = db.transaction([storeName], 'readwrite');
     const store = transaction.objectStore(storeName);
     const request = store.clear();
     
     request.onsuccess = () => resolve();
-    request.onerror = (event) => reject(event.target.error);
+    request.onerror = event => reject(event.target.error);
   });
 }
 
-// Event listeners
-function setupEventListeners() {
-  // Language toggle
-  document.getElementById('language-toggle').addEventListener('change', (e) => {
-    currentLanguage = e.target.checked ? 'en' : 'ur';
-    document.getElementById('settings-language-toggle').checked = e.target.checked;
-    updateLanguageSetting();
-  });
-  
-  document.getElementById('settings-language-toggle').addEventListener('change', (e) => {
-    currentLanguage = e.target.checked ? 'en' : 'ur';
-    document.getElementById('language-toggle').checked = e.target.checked;
-    updateLanguageSetting();
-  });
-  
-  // Theme toggle
-  document.getElementById('theme-toggle').addEventListener('change', (e) => {
-    currentTheme = e.target.checked ? 'dark' : 'light';
-    document.getElementById('settings-theme-toggle').checked = e.target.checked;
-    updateThemeSetting();
-  });
-  
-  document.getElementById('settings-theme-toggle').addEventListener('change', (e) => {
-    currentTheme = e.target.checked ? 'dark' : 'light';
-    document.getElementById('theme-toggle').checked = e.target.checked;
-    updateThemeSetting();
-  });
-  
-  // Search - with debounce to prevent UI freeze
-  let searchTimeout;
-  document.getElementById('search-input').addEventListener('keyup', (e) => {
-    clearTimeout(searchTimeout);
-    searchTimeout = setTimeout(() => {
-      if (e.key === 'Enter') {
-        const searchTerm = e.target.value.trim();
-        populateNarratorsList({ search: searchTerm }, 1);
-      }
-    }, 300);
-  });
-  
-  document.getElementById('search-btn').addEventListener('click', () => {
-    const searchTerm = document.getElementById('search-input').value.trim();
-    populateNarratorsList({ search: searchTerm }, 1);
-  });
-  
-  // Filters
-  document.getElementById('generation-filter').addEventListener('change', updateFilters);
-  document.getElementById('interest-filter').addEventListener('change', updateFilters);
-  document.getElementById('tag-filter').addEventListener('change', updateFilters);
-  document.getElementById('category-filter').addEventListener('change', updateFilters);
-  
-  // Tabs
-  document.querySelectorAll('.tab').forEach(tab => {
-    tab.addEventListener('click', () => {
-      document.querySelectorAll('.tab').forEach(t => t.classList.remove('active'));
-      tab.classList.add('active');
+// Save notes to database
+function saveNotes(notes) {
+  return new Promise((resolve, reject) => {
+    if (!db) return reject(new Error('Database not initialized'));
+    if (!notes || notes.length === 0) return resolve();
+    
+    const transaction = db.transaction([STORES.NOTES], 'readwrite');
+    const store = transaction.objectStore(STORES.NOTES);
+    
+    // Track completion
+    let completed = 0;
+    
+    // Add each note
+    notes.forEach(note => {
+      const request = store.add(note);
       
-      const tabId = tab.dataset.tab;
-      document.querySelectorAll('.tab-content').forEach(content => {
-        content.classList.add('hidden');
-      });
-      document.getElementById(`${tabId}-tab`).classList.remove('hidden');
+      request.onsuccess = () => {
+        completed++;
+        if (completed === notes.length) resolve();
+      };
       
-      if (tabId === 'visualization' && currentNarrator) {
-        setTimeout(generateVisualizations, 100);
-      }
+      request.onerror = event => {
+        console.error('Error saving note:', event.target.error);
+        completed++;
+        if (completed === notes.length) resolve();
+      };
     });
-  });
-  
-  // Visualization controls
-  document.getElementById('tree-view-btn').addEventListener('click', () => {
-    document.getElementById('tree-visualization').classList.remove('hidden');
-    document.getElementById('graph-visualization').classList.add('hidden');
-  });
-  
-  document.getElementById('graph-view-btn').addEventListener('click', () => {
-    document.getElementById('tree-visualization').classList.add('hidden');
-    document.getElementById('graph-visualization').classList.remove('hidden');
-  });
-  
-  // Notes
-  document.getElementById('save-note-btn').addEventListener('click', async () => {
-    const noteText = document.getElementById('note-input').value.trim();
-    if (noteText && currentNarrator) {
-      await addNote(currentNarrator.scholar_indx, noteText);
-      document.getElementById('note-input').value = '';
-      await loadNarratorNotes();
-    }
-  });
-  
-  // Note delete buttons are added dynamically, so we use event delegation
-  document.getElementById('notes-container').addEventListener('click', async (e) => {
-    const deleteBtn = e.target.closest('[data-action="delete-note"]');
-    if (deleteBtn) {
-      const noteId = parseInt(deleteBtn.dataset.noteId);
-      await deleteNote(noteId);
-      await loadNarratorNotes();
-    }
-  });
-  
-  // Bookmark toggle
-  document.getElementById('bookmark-btn').addEventListener('click', async () => {
-    if (!currentNarrator) return;
     
-    const isBookmarked = await isNarratorBookmarked(currentNarrator.scholar_indx);
-    
-    if (isBookmarked) {
-      await unbookmarkNarrator(currentNarrator.scholar_indx);
-    } else {
-      await bookmarkNarrator(currentNarrator.scholar_indx);
-    }
-    
-    checkBookmarkStatus();
+    // Handle transaction errors
+    transaction.onerror = event => reject(event.target.error);
   });
-  
-  // Category button
-  document.getElementById('category-btn').addEventListener('click', () => {
-    if (!currentNarrator) return;
-    populateCategoriesModal();
-    showModal('category-modal');
-  });
-  
-  // Import/Export
-  document.getElementById('import-btn').addEventListener('click', () => {
-    showModal('import-modal');
-  });
-  
-  document.getElementById('export-btn').addEventListener('click', () => {
-    showModal('export-modal');
-  });
-  
-  document.getElementById('import-file-btn').addEventListener('click', async () => {
-    const fileInput = document.getElementById('import-file');
-    const file = fileInput.files[0];
+}
+
+// Save bookmarks to database
+function saveBookmarks(bookmarks) {
+  return new Promise((resolve, reject) => {
+    if (!db) return reject(new Error('Database not initialized'));
+    if (!bookmarks || bookmarks.length === 0) return resolve();
     
-    if (!file) {
-      alert('Please select a file to import');
-      return;
-    }
+    const transaction = db.transaction([STORES.BOOKMARKS], 'readwrite');
+    const store = transaction.objectStore(STORES.BOOKMARKS);
     
-    showLoadingIndicator();
+    // Track completion
+    let completed = 0;
     
+    // Add each bookmark
+    bookmarks.forEach(bookmark => {
+      const request = store.put(bookmark);
+      
+      request.onsuccess = () => {
+        completed++;
+        if (completed === bookmarks.length) resolve();
+      };
+      
+      request.onerror = event => {
+        console.error('Error saving bookmark:', event.target.error);
+        completed++;
+        if (completed === bookmarks.length) resolve();
+      };
+    });
+    
+    // Handle transaction errors
+    transaction.onerror = event => reject(event.target.error);
+  });
+}
+
+// Read file as text
+function readFileAsText(file) {
+  return new Promise((resolve, reject) => {
     const reader = new FileReader();
     
-    reader.onload = async (e) => {
-      try {
-        if (file.name.endsWith('.csv')) {
-          await importCSVDataProgressively(e.target.result);
-        } else if (file.name.endsWith('.json')) {
-          const data = JSON.parse(e.target.result);
-          await importData(data);
-        } else {
-          alert('Unsupported file format. Please use CSV or JSON.');
-          hideLoadingIndicator();
-          return;
-        }
-        
-        hideModal('import-modal');
-        await populateNarratorsList();
-        await populateFilters();
-        
-        hideLoadingIndicator();
-        alert('Data imported successfully!');
-      } catch (error) {
-        console.error('Import error:', error);
-        hideLoadingIndicator();
-        alert(`Import failed: ${error.message}`);
-      }
+    reader.onload = event => {
+      resolve(event.target.result);
+    };
+    
+    reader.onerror = error => {
+      reject(error);
     };
     
     reader.readAsText(file);
   });
-  
-  document.getElementById('export-file-btn').addEventListener('click', async () => {
-    try {
-      showLoadingIndicator();
-      const data = await exportData();
-      const json = JSON.stringify(data, null, 2);
-      const blob = new Blob([json], { type: 'application/json' });
-      const url = URL.createObjectURL(blob);
-      
-      const a = document.createElement('a');
-      a.href = url;
-      a.download = `isnad_narrators_export_${new Date().toISOString().slice(0, 10)}.json`;
-      document.body.appendChild(a);
-      a.click();
-      document.body.removeChild(a);
-      
-      hideModal('export-modal');
-      hideLoadingIndicator();
-    } catch (error) {
-      console.error('Export error:', error);
-      hideLoadingIndicator();
-      alert(`Export failed: ${error.message}`);
-    }
-  });
-  
-  // Settings
-  document.getElementById('settings-btn').addEventListener('click', () => {
-    showModal('settings-modal');
-  });
-  
-  document.getElementById('reset-data-btn').addEventListener('click', async () => {
-    if (confirm('Are you sure you want to reset all data? This action cannot be undone.')) {
-      showLoadingIndicator();
-      
-      try {
-        await clearObjectStore(NARRATORS_STORE);
-        await clearObjectStore(NOTES_STORE);
-        await clearObjectStore(BOOKMARKS_STORE);
-        await clearObjectStore(CATEGORIES_STORE);
-        
-        const response = await fetch('all_rawis.csv');
-        if (!response.ok) {
-          throw new Error(`HTTP error! status: ${response.status}`);
-        }
-        const csvData = await response.text();
-        await importCSVDataProgressively(csvData);
-        
-        await populateNarratorsList();
-        await populateFilters();
-        
-        hideModal('settings-modal');
-        hideLoadingIndicator();
-        alert('Data has been reset successfully');
-      } catch (error) {
-        console.error('Reset error:', error);
-        hideLoadingIndicator();
-        alert(`Reset failed: ${error.message}`);
-      }
-    }
-  });
-  
-  // Modal close buttons
-  document.querySelectorAll('.modal-close').forEach(btn => {
-    btn.addEventListener('click', () => {
-      hideModal(btn.closest('.modal').id);
-    });
-  });
-  
-  // Onboarding and disclaimer buttons
-  document.getElementById('start-app-btn').addEventListener('click', () => {
-    hideModal('onboarding-modal');
-    showModal('disclaimer-modal');
-  });
-  
-  document.getElementById('accept-disclaimer-btn').addEventListener('click', async () => {
-    await updateSetting('hasCompletedOnboarding', true);
-    hideModal('disclaimer-modal');
-  });
-  
-  // Category management
-  document.getElementById('add-category-btn').addEventListener('click', async () => {
-    const categoryName = document.getElementById('new-category-input').value.trim();
-    
-    if (categoryName) {
-      try {
-        await addCategory(categoryName);
-        document.getElementById('new-category-input').value = '';
-        await populateCategoriesModal();
-        await populateFilters();
-      } catch (error) {
-        console.error('Add category error:', error);
-        alert(`Failed to add category: ${error.message}`);
-      }
-    }
-  });
 }
 
-async function updateFilters() {
-  const generationFilter = document.getElementById('generation-filter').value;
-  const interestFilter = document.getElementById('interest-filter').value;
-  const tagFilter = document.getElementById('tag-filter').value;
-  const categoryFilter = document.getElementById('category-filter').value;
-  
-  const filter = {};
-  if (generationFilter) filter.generation = generationFilter;
-  if (interestFilter) filter.interest = interestFilter;
-  if (tagFilter) filter.tag = tagFilter;
-  if (categoryFilter) filter.category = categoryFilter;
-  
-  // Always start from page 1 when filters change
-  await populateNarratorsList(filter, 1);
+// Show onboarding modal
+function showOnboarding() {
+  showModal('onboarding-modal');
 }
 
-async function updateLanguageSetting() {
-  document.documentElement.lang = currentLanguage;
-  document.documentElement.dir = currentLanguage === 'ur' ? 'rtl' : 'ltr';
-  updateLanguageDisplay();
-  await updateSetting('language', currentLanguage);
-}
-
-async function updateThemeSetting() {
-  document.body.className = `${currentTheme}-theme`;
-  await updateSetting('theme', currentTheme);
-  
-  if (currentNarrator) {
-    setTimeout(generateVisualizations, 100);
-  }
-}
-
-async function populateCategoriesModal() {
-  const categoriesList = document.getElementById('categories-list');
-  categoriesList.innerHTML = '';
-  
-  const categories = await getAllCategories();
-  
-  if (categories.length === 0) {
-    categoriesList.innerHTML = `
-      
-        No categories added yet
-        ابھی تک کوئی زمرہ شامل نہیں کیا گیا
-      
-    `;
-    return;
-  }
-  
-  categories.forEach(category => {
-    const item = document.createElement('div');
-    item.className = 'category-item';
-    item.innerHTML = `
-      
-        
-        ${category.name}
-      
-    `;
-    
-    categoriesList.appendChild(item);
-  });
-}
-
-// Modal helpers
+// Show modal
 function showModal(modalId) {
   const modal = document.getElementById(modalId);
   if (modal) {
@@ -2389,6 +2605,7 @@ function showModal(modalId) {
   }
 }
 
+// Hide modal
 function hideModal(modalId) {
   const modal = document.getElementById(modalId);
   if (modal) {
@@ -2396,9 +2613,490 @@ function hideModal(modalId) {
   }
 }
 
-// File API check
-if (typeof FileReader === 'undefined') {
-  alert('Sorry, your browser does not support the File API needed for importing data.');
-}  </script>
+// Show loading indicator
+function showLoader(message = 'Loading...') {
+  isLoading = true;
+  
+  // Create loader if it doesn't exist
+  if (!document.getElementById('app-loader')) {
+    const loader = document.createElement('div');
+    loader.id = 'app-loader';
+    loader.innerHTML = `
+      <div class="loader-content">
+        <div class="spinner"></div>
+        <div id="loader-message"></div>
+      </div>
+    `;
+    document.body.appendChild(loader);
+  }
+  
+  // Update message
+  const messageEl = document.getElementById('loader-message');
+  if (messageEl) {
+    messageEl.innerText = message;
+  }
+  
+  // Show loader
+  document.getElementById('app-loader').style.display = 'flex';
+}
+
+// Update loader message
+function updateLoader(message) {
+  const messageEl = document.getElementById('loader-message');
+  if (messageEl) {
+    messageEl.innerText = message;
+  }
+}
+
+// Hide loading indicator
+function hideLoader() {
+  isLoading = false;
+  const loader = document.getElementById('app-loader');
+  if (loader) {
+    loader.style.display = 'none';
+  }
+}
+
+// Show error message
+function showError(message) {
+  // Create error element if it doesn't exist
+  if (!document.getElementById('app-error')) {
+    const errorEl = document.createElement('div');
+    errorEl.id = 'app-error';
+    errorEl.innerHTML = `
+      <div class="error-content">
+        <div class="error-icon">⚠️</div>
+        <div id="error-message"></div>
+        <button id="error-close">OK</button>
+      </div>
+    `;
+    document.body.appendChild(errorEl);
+    
+    // Add close handler
+    document.getElementById('error-close').addEventListener('click', () => {
+      document.getElementById('app-error').style.display = 'none';
+    });
+  }
+  
+  // Update message
+  document.getElementById('error-message').innerText = message;
+  
+  // Show error
+  document.getElementById('app-error').style.display = 'flex';
+  
+  // Auto-hide after 5 seconds
+  setTimeout(() => {
+    const errorEl = document.getElementById('app-error');
+    if (errorEl && errorEl.style.display === 'flex') {
+      errorEl.style.display = 'none';
+    }
+  }, 5000);
+}
+
+// Add these CSS styles to your existing styles
+const additionalCSS = `
+#app-loader {
+  position: fixed;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  background-color: rgba(0,0,0,0.7);
+  display: none;
+  justify-content: center;
+  align-items: center;
+  z-index: 9999;
+}
+
+.loader-content {
+  background-color: var(--card-bg);
+  padding: 2rem;
+  border-radius: var(--border-radius);
+  text-align: center;
+  box-shadow: var(--shadow);
+}
+
+.spinner {
+  width: 50px;
+  height: 50px;
+  border: 5px solid rgba(0,0,0,0.1);
+  border-radius: 50%;
+  border-top-color: var(--primary);
+  animation: spin 1s linear infinite;
+  margin: 0 auto 1rem;
+}
+
+@keyframes spin {
+  to { transform: rotate(360deg); }
+}
+
+#app-error {
+  position: fixed;
+  top: 1rem;
+  right: 1rem;
+  background-color: var(--error);
+  color: white;
+  padding: 1rem;
+  border-radius: var(--border-radius);
+  box-shadow: var(--shadow);
+  max-width: 300px;
+  display: none;
+  z-index: 9998;
+}
+
+.error-content {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+}
+
+.error-icon {
+  font-size: 2rem;
+  margin-bottom: 0.5rem;
+}
+
+#error-close {
+  margin-top: 1rem;
+  background-color: white;
+  color: var(--error);
+  border: none;
+  border-radius: var(--border-radius);
+  padding: 0.5rem 1rem;
+  cursor: pointer;
+  font-weight: bold;
+}
+
+.pagination {
+  display: flex;
+  justify-content: center;
+  align-items: center;
+margin-top: 1rem;
+gap: 1rem;
+}
+
+.pagination-btn {
+min-width: 40px;
+height: 40px;
+display: flex;
+justify-content: center;
+align-items: center;
+background-color: var(--primary);
+color: white;
+border: none;
+border-radius: var(--border-radius);
+cursor: pointer;
+}
+
+.pagination-btn:disabled {
+opacity: 0.5;
+cursor: not-allowed;
+}
+
+.page-info {
+font-size: 0.9rem;
+}
+
+/* Fix font loading issues */
+@import url('https://fonts.googleapis.com/css2?family=Noto+Sans&family=Noto+Nastaliq+Urdu&display=swap');
+
+/* Ensure material icons work */
+.material-icons {
+font-family: 'Material Icons';
+font-weight: normal;
+font-style: normal;
+font-size: 24px;
+display: inline-block;
+line-height: 1;
+text-transform: none;
+letter-spacing: normal;
+word-wrap: normal;
+white-space: nowrap;
+direction: ltr;
+}
+`;
+
+// Add the CSS to the page
+document.addEventListener('DOMContentLoaded', () => {
+const styleEl = document.createElement('style');
+styleEl.textContent = additionalCSS;
+document.head.appendChild(styleEl);
+
+// Add Material Icons font if needed
+if (!document.querySelector('link[href*="Material+Icons"]')) {
+const link = document.createElement('link');
+link.rel = 'stylesheet';
+link.href = 'https://fonts.googleapis.com/icon?family=Material+Icons';
+document.head.appendChild(link);
+}
+});
+
+
+
+
+// Add zoom in/out controls for visualizations
+document.addEventListener('DOMContentLoaded', function() {
+// Create zoom controls container
+const zoomControls = document.createElement('div');
+zoomControls.className = 'zoom-controls';
+zoomControls.innerHTML = `    <button id="zoom-in" class="btn zoom-btn" title="Zoom In">       <span class="material-icons">add</span>     </button>     <button id="zoom-reset" class="btn zoom-btn" title="Reset Zoom">       <span class="material-icons">refresh</span>     </button>     <button id="zoom-out" class="btn zoom-btn" title="Zoom Out">       <span class="material-icons">remove</span>     </button>  `;
+
+// Add styles for zoom controls
+const style = document.createElement('style');
+style.textContent = `
+.zoom-controls {
+position: absolute;
+bottom: 10px;
+right: 10px;
+display: flex;
+gap: 5px;
+background: rgba(255, 255, 255, 0.7);
+padding: 5px;
+border-radius: var(--border-radius);
+z-index: 10;
+}
+
+    .dark-theme .zoom-controls {
+      background: rgba(30, 30, 30, 0.7);
+    }
+    
+    .zoom-btn {
+      width: 36px;
+      height: 36px;
+      padding: 6px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+    }
+    
+    .visualization {
+      position: relative;
+      overflow: hidden;
+    }
+    
+    .visualization svg {
+      transform-origin: center;
+      transition: transform 0.2s ease-out;
+    }
+    
+    .panning svg {
+      transition: none;
+    }
+    `;
+document.head.appendChild(style);
+
+// Wait for visualization tab to be available
+const checkVisualizationTab = setInterval(() => {
+const visualizationTab = document.getElementById('visualization-tab');
+if (visualizationTab) {
+clearInterval(checkVisualizationTab);
+
+      // Add zoom controls to visualization containers
+      const treeViz = document.getElementById('tree-visualization');
+      const graphViz = document.getElementById('graph-visualization');
+      
+      if (treeViz) {
+        treeViz.parentNode.style.position = 'relative';
+        const treeZoomControls = zoomControls.cloneNode(true);
+        treeZoomControls.id = 'tree-zoom-controls';
+        treeViz.parentNode.appendChild(treeZoomControls);
+        setupZoomControls(treeZoomControls, treeViz);
+      }
+      
+      if (graphViz) {
+        graphViz.parentNode.style.position = 'relative';
+        const graphZoomControls = zoomControls.cloneNode(true);
+        graphZoomControls.id = 'graph-zoom-controls';
+        graphViz.parentNode.appendChild(graphZoomControls);
+        setupZoomControls(graphZoomControls, graphViz);
+      }
+    }
+    }, 500);
+
+// Set up zoom functionality for a visualization container
+function setupZoomControls(controlsContainer, vizContainer) {
+const zoomInBtn = controlsContainer.querySelector('[id^="zoom-in"]');
+const zoomResetBtn = controlsContainer.querySelector('[id^="zoom-reset"]');
+const zoomOutBtn = controlsContainer.querySelector('[id^="zoom-out"]');
+
+    // Initialize zoom level
+    let zoomLevel = 1;
+    let panStartX = 0;
+    let panStartY = 0;
+    let translateX = 0;
+    let translateY = 0;
+    let isPanning = false;
+    
+    // Zoom in button
+    zoomInBtn.addEventListener('click', () => {
+      zoomLevel = Math.min(zoomLevel + 0.2, 3);
+      updateTransform();
+    });
+    
+    // Zoom reset button
+    zoomResetBtn.addEventListener('click', () => {
+      zoomLevel = 1;
+      translateX = 0;
+      translateY = 0;
+      updateTransform();
+    });
+    
+    // Zoom out button
+    zoomOutBtn.addEventListener('click', () => {
+      zoomLevel = Math.max(zoomLevel - 0.2, 0.5);
+      updateTransform();
+    });
+    
+    // Add wheel zoom support
+    vizContainer.addEventListener('wheel', (e) => {
+      e.preventDefault();
+      
+      // Get mouse position relative to visualization
+      const rect = vizContainer.getBoundingClientRect();
+      const mouseX = e.clientX - rect.left;
+      const mouseY = e.clientY - rect.top;
+      
+      // Calculate zoom
+      const zoomDelta = e.deltaY > 0 ? -0.1 : 0.1;
+      const newZoomLevel = Math.max(0.5, Math.min(3, zoomLevel + zoomDelta));
+      
+      // Adjust translation to zoom toward mouse position
+      if (zoomLevel !== newZoomLevel) {
+        const scale = newZoomLevel / zoomLevel;
+        translateX = mouseX - scale * (mouseX - translateX);
+        translateY = mouseY - scale * (mouseY - translateY);
+        zoomLevel = newZoomLevel;
+        updateTransform();
+      }
+    });
+    
+    // Add panning support with mouse drag
+    vizContainer.addEventListener('mousedown', (e) => {
+      if (e.button === 0) { // Left mouse button
+        isPanning = true;
+        vizContainer.classList.add('panning');
+        panStartX = e.clientX - translateX;
+        panStartY = e.clientY - translateY;
+        
+        // Create overlay for drag handling
+        const overlay = document.createElement('div');
+        overlay.style.position = 'fixed';
+        overlay.style.top = '0';
+        overlay.style.left = '0';
+        overlay.style.width = '100%';
+        overlay.style.height = '100%';
+        overlay.style.cursor = 'grabbing';
+        overlay.style.zIndex = '1000';
+        overlay.style.userSelect = 'none';
+        document.body.appendChild(overlay);
+        
+        function handleMouseMove(e) {
+          if (isPanning) {
+            translateX = e.clientX - panStartX;
+            translateY = e.clientY - panStartY;
+            updateTransform();
+          }
+        }
+        
+        function handleMouseUp() {
+          isPanning = false;
+          vizContainer.classList.remove('panning');
+          document.body.removeChild(overlay);
+          document.removeEventListener('mousemove', handleMouseMove);
+          document.removeEventListener('mouseup', handleMouseUp);
+        }
+        
+        document.addEventListener('mousemove', handleMouseMove);
+        document.addEventListener('mouseup', handleMouseUp);
+      }
+    });
+    
+    // Update SVG transform
+    function updateTransform() {
+      const svg = vizContainer.querySelector('svg');
+      if (svg) {
+        svg.style.transform = `translate(${translateX}px, ${translateY}px) scale(${zoomLevel})`;
+      }
+    }
+    
+    // Add grab cursor
+    vizContainer.style.cursor = 'grab';
+    }
+
+// Add a MutationObserver to handle dynamically created visualization content
+const vizObserver = new MutationObserver((mutations) => {
+mutations.forEach(mutation => {
+if (mutation.type === 'childList' && mutation.addedNodes.length > 0) {
+mutation.addedNodes.forEach(node => {
+if (node.nodeName === 'SVG') {
+// Set initial transform
+node.style.transformOrigin = 'center';
+node.style.transition = 'transform 0.2s ease-out';
+}
+});
+}
+});
+});
+
+// Observe both visualization containers once they're available
+const observeVizContainers = setInterval(() => {
+const treeViz = document.getElementById('tree-visualization');
+const graphViz = document.getElementById('graph-visualization');
+
+    if (treeViz) {
+      vizObserver.observe(treeViz, { childList: true });
+      clearInterval(observeVizContainers);
+    }
+    
+    if (graphViz) {
+      vizObserver.observe(graphViz, { childList: true });
+      clearInterval(observeVizContainers);
+    }
+    }, 500);
+
+// Handle visualization tab activation to ensure zoom controls are visible
+document.addEventListener('click', (e) => {
+if (e.target.classList.contains('tab') && e.target.dataset.tab === 'visualization') {
+setTimeout(() => {
+const treeZoomControls = document.getElementById('tree-zoom-controls');
+const graphZoomControls = document.getElementById('graph-zoom-controls');
+
+        if (treeZoomControls) {
+          treeZoomControls.style.display = document.getElementById('tree-visualization').classList.contains('hidden') ? 'none' : 'flex';
+        }
+        
+        if (graphZoomControls) {
+          graphZoomControls.style.display = document.getElementById('graph-visualization').classList.contains('hidden') ? 'none' : 'flex';
+        }
+      }, 100);
+    }
+    });
+
+// Also handle tree/graph view button clicks
+document.addEventListener('click', (e) => {
+const treeViewBtn = e.target.closest('\#tree-view-btn');
+const graphViewBtn = e.target.closest('\#graph-view-btn');
+
+    if (treeViewBtn) {
+      setTimeout(() => {
+        const treeZoomControls = document.getElementById('tree-zoom-controls');
+        const graphZoomControls = document.getElementById('graph-zoom-controls');
+        if (treeZoomControls) treeZoomControls.style.display = 'flex';
+        if (graphZoomControls) graphZoomControls.style.display = 'none';
+      }, 100);
+    }
+    
+    if (graphViewBtn) {
+      setTimeout(() => {
+        const treeZoomControls = document.getElementById('tree-zoom-controls');
+        const graphZoomControls = document.getElementById('graph-zoom-controls');
+        if (treeZoomControls) treeZoomControls.style.display = 'none';
+        if (graphZoomControls) graphZoomControls.style.display = 'flex';
+      }, 100);
+    }
+    });
+});
+
+
+</script>
 </body>
 </html>
