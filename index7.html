@@ -1,0 +1,2042 @@
+
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Isnad Narrators Explorer</title>
+  <style>
+    :root {
+      --primary: #2c3e50;
+      --secondary: #34495e;
+      --accent: #3498db;
+      --text: #333;
+      --bg: #f5f5f5;
+      --card: #fff;
+      --border: #ddd;
+    }
+    
+    [data-theme="dark"] {
+      --primary: #1a2634;
+      --secondary: #2c3e50;
+      --accent: #2980b9;
+      --text: #ecf0f1;
+      --bg: #121212;
+      --card: #1e1e1e;
+      --border: #333;
+    }
+    
+    * {
+      margin: 0;
+      padding: 0;
+      box-sizing: border-box;
+      transition: background-color 0.3s, color 0.3s;
+    }
+    
+    body {
+      font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+      background-color: var(--bg);
+      color: var(--text);
+      line-height: 1.6;
+    }
+    
+    [dir="rtl"] {
+      font-family: 'Noto Sans Arabic', 'Noto Nastaliq Urdu', sans-serif;
+    }
+    
+    .container {
+      max-width: 1200px;
+      margin: 0 auto;
+      padding: 1rem;
+    }
+    
+    header {
+      background-color: var(--primary);
+      color: white;
+      padding: 1rem;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      box-shadow: 0 2px 5px rgba(0,0,0,0.1);
+    }
+    
+    .app-title {
+      font-size: 1.5rem;
+      font-weight: 700;
+    }
+    
+    .controls {
+      display: flex;
+      gap: 1rem;
+      align-items: center;
+    }
+    
+    button, .btn {
+      background-color: var(--accent);
+      color: white;
+      border: none;
+      padding: 0.5rem 1rem;
+      border-radius: 4px;
+      cursor: pointer;
+      font-size: 0.9rem;
+    }
+    
+    button:hover, .btn:hover {
+      opacity: 0.9;
+    }
+    
+    .switch {
+      position: relative;
+      display: inline-block;
+      width: 50px;
+      height: 24px;
+    }
+    
+    .switch input {
+      opacity: 0;
+      width: 0;
+      height: 0;
+    }
+    
+    .slider {
+      position: absolute;
+      cursor: pointer;
+      top: 0;
+      left: 0;
+      right: 0;
+      bottom: 0;
+      background-color: #ccc;
+      transition: .4s;
+      border-radius: 24px;
+    }
+    
+    .slider:before {
+      position: absolute;
+      content: "";
+      height: 16px;
+      width: 16px;
+      left: 4px;
+      bottom: 4px;
+      background-color: white;
+      transition: .4s;
+      border-radius: 50%;
+    }
+    
+    input:checked + .slider {
+      background-color: var(--accent);
+    }
+    
+    input:checked + .slider:before {
+      transform: translateX(26px);
+    }
+    
+    .main {
+      display: grid;
+      grid-template-columns: 300px 1fr;
+      gap: 1rem;
+      margin-top: 1rem;
+    }
+    
+    @media (max-width: 768px) {
+      .main {
+        grid-template-columns: 1fr;
+      }
+    }
+    
+    .sidebar {
+      background-color: var(--card);
+      border-radius: 8px;
+      padding: 1rem;
+      box-shadow: 0 2px 5px rgba(0,0,0,0.1);
+      border: 1px solid var(--border);
+    }
+    
+    .search-box {
+      display: flex;
+      flex-direction: column;
+      gap: 0.5rem;
+      margin-bottom: 1rem;
+    }
+    
+    input[type="text"], select {
+      padding: 0.5rem;
+      border: 1px solid var(--border);
+      border-radius: 4px;
+      background-color: var(--bg);
+      color: var(--text);
+    }
+    
+    .filters {
+      margin-top: 1rem;
+    }
+    
+    .filter-group {
+      margin-bottom: 1rem;
+    }
+    
+    .filter-title {
+      font-weight: 600;
+      margin-bottom: 0.5rem;
+    }
+    
+    .content {
+      background-color: var(--card);
+      border-radius: 8px;
+      padding: 1rem;
+      box-shadow: 0 2px 5px rgba(0,0,0,0.1);
+      border: 1px solid var(--border);
+    }
+    
+    .tabs {
+      display: flex;
+      border-bottom: 1px solid var(--border);
+      margin-bottom: 1rem;
+    }
+    
+    .tab {
+      padding: 0.5rem 1rem;
+      cursor: pointer;
+      border-bottom: 2px solid transparent;
+    }
+    
+    .tab.active {
+      border-bottom: 2px solid var(--accent);
+      font-weight: 600;
+    }
+    
+    .tab-content {
+      display: none;
+    }
+    
+    .tab-content.active {
+      display: block;
+    }
+    
+    .narrator-card {
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      padding: 1rem;
+      margin-bottom: 1rem;
+      background-color: var(--bg);
+    }
+    
+    .narrator-name {
+      font-size: 1.2rem;
+      font-weight: 600;
+      margin-bottom: 0.5rem;
+    }
+    
+    .narrator-info {
+      display: grid;
+      grid-template-columns: repeat(auto-fill, minmax(300px, 1fr));
+      gap: 0.5rem;
+    }
+    
+    .info-item {
+      display: flex;
+      flex-direction: column;
+    }
+    
+    .info-label {
+      font-weight: 600;
+      font-size: 0.9rem;
+      color: var(--secondary);
+    }
+    
+    .relationship {
+      margin-top: 1rem;
+    }
+    
+    .relationship-title {
+      font-weight: 600;
+      margin-bottom: 0.5rem;
+    }
+    
+    .relationship-list {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 0.5rem;
+    }
+    
+    .relationship-item {
+      background-color: var(--primary);
+      color: white;
+      padding: 0.25rem 0.5rem;
+      border-radius: 4px;
+      font-size: 0.9rem;
+      cursor: pointer;
+    }
+    
+    .pagination {
+      display: flex;
+      justify-content: center;
+      margin-top: 1rem;
+      gap: 0.5rem;
+    }
+    
+    .page-btn {
+      padding: 0.25rem 0.5rem;
+      background-color: var(--card);
+      border: 1px solid var(--border);
+      border-radius: 4px;
+      cursor: pointer;
+    }
+    
+    .page-btn.active {
+      background-color: var(--accent);
+      color: white;
+    }
+    
+    .visualization-container {
+      width: 100%;
+      height: 500px;
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      overflow: hidden;
+      position: relative;
+    }
+    
+    .visualization-controls {
+      position: absolute;
+      top: 10px;
+      right: 10px;
+      z-index: 10;
+      display: flex;
+      gap: 0.5rem;
+    }
+    
+    .notes-container {
+      margin-top: 1rem;
+    }
+    
+    .note {
+      background-color: var(--bg);
+      padding: 0.5rem;
+      border-radius: 4px;
+      margin-bottom: 0.5rem;
+      border-left: 3px solid var(--accent);
+    }
+    
+    .note-form {
+      display: flex;
+      flex-direction: column;
+      gap: 0.5rem;
+      margin-bottom: 1rem;
+    }
+    
+    textarea {
+      padding: 0.5rem;
+      border: 1px solid var(--border);
+      border-radius: 4px;
+      background-color: var(--bg);
+      color: var(--text);
+      min-height: 100px;
+    }
+    
+    .bookmarks-list {
+      margin-top: 1rem;
+    }
+    
+    .bookmark-item {
+      padding: 0.5rem;
+      border-bottom: 1px solid var(--border);
+      cursor: pointer;
+      display: flex;
+      justify-content: space-between;
+    }
+    
+    .bookmark-item:hover {
+      background-color: var(--bg);
+    }
+    
+    .modal {
+      display: none;
+      position: fixed;
+      z-index: 100;
+      left: 0;
+      top: 0;
+      width: 100%;
+      height: 100%;
+      background-color: rgba(0,0,0,0.7);
+      overflow: auto;
+    }
+    
+    .modal-content {
+      background-color: var(--card);
+      margin: 10% auto;
+      padding: 1.5rem;
+      border-radius: 8px;
+      width: 80%;
+      max-width: 600px;
+      box-shadow: 0 5px 15px rgba(0,0,0,0.3);
+    }
+    
+    .modal-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      margin-bottom: 1rem;
+    }
+    
+    .close {
+      color: #aaa;
+      font-size: 28px;
+      font-weight: bold;
+      cursor: pointer;
+    }
+    
+    .close:hover {
+      color: var(--text);
+    }
+    
+    .loading {
+      display: flex;
+      justify-content: center;
+      align-items: center;
+      height: 100px;
+    }
+    
+    .spinner {
+      border: 4px solid rgba(0, 0, 0, 0.1);
+      border-left: 4px solid var(--accent);
+      border-radius: 50%;
+      width: 30px;
+      height: 30px;
+      animation: spin 1s linear infinite;
+    }
+    
+    @keyframes spin {
+      0% { transform: rotate(0deg); }
+      100% { transform: rotate(360deg); }
+    }
+  </style>
+</head>
+<body>
+
+  <header>
+    <div class="app-title">
+      <span class="en">Isnad Narrators Explorer</span>
+      <span class="ur" style="display:none;">اسناد راوی ایکسپلورر</span>
+    </div>
+    <div class="controls">
+      <label class="switch" title="Toggle language">
+        <input type="checkbox" id="langToggle">
+        <span class="slider"></span>
+      </label>
+      <span class="en">EN</span><span class="ur" style="display:none;">اردو</span>
+      
+      <label class="switch" title="Toggle theme">
+        <input type="checkbox" id="themeToggle">
+        <span class="slider"></span>
+      </label>
+      <i id="themeIcon">🌙</i>
+      
+      <button id="importBtn" class="en">Import</button>
+      <button id="importBtn" class="ur" style="display:none;">درآمد کریں</button>
+      
+      <button id="exportBtn" class="en">Export</button>
+      <button id="exportBtn" class="ur" style="display:none;">برآمد کریں</button>
+    </div>
+  </header>
+  <div class="container">
+    <div class="main">
+      <aside class="sidebar">
+        <div class="search-box">
+          <input type="text" id="searchInput" placeholder="Search narrators..." class="en">
+          <input type="text" id="searchInput" placeholder="راویوں کو تلاش کریں..." class="ur" style="display:none;">
+          
+          <select id="searchField" class="en">
+            <option value="name">Name</option>
+            <option value="grade">Grade</option>
+            <option value="birth_place">Birth Place</option>
+            <option value="death_place">Death Place</option>
+            <option value="area_of_interest">Area of Interest</option>
+            <option value="tags">Tags</option>
+          </select>
+          <select id="searchField" class="ur" style="display:none;">
+            <option value="name">نام</option>
+            <option value="grade">درجہ</option>
+            <option value="birth_place">جائے پیدائش</option>
+            <option value="death_place">جائے وفات</option>
+            <option value="area_of_interest">دلچسپی کا شعبہ</option>
+            <option value="tags">ٹیگز</option>
+          </select>
+        </div>
+        <div class="filters">
+          <h3 class="en">Filters</h3>
+          <h3 class="ur" style="display:none;">فلٹرز</h3>
+          
+          <div class="filter-group">
+            <div class="filter-title en">Time Period</div>
+            <div class="filter-title ur" style="display:none;">زمانہ</div>
+            <select id="centuryFilter" class="en">
+              <option value="">All Centuries</option>
+              <option value="1">1st Century</option>
+              <option value="2">2nd Century</option>
+              <option value="3">3rd Century</option>
+              <option value="4">4th Century</option>
+              <option value="5">5th Century</option>
+            </select>
+            <select id="centuryFilter" class="ur" style="display:none;">
+              <option value="">تمام صدیاں</option>
+              <option value="1">پہلی صدی</option>
+              <option value="2">دوسری صدی</option>
+              <option value="3">تیسری صدی</option>
+              <option value="4">چوتھی صدی</option>
+              <option value="5">پانچویں صدی</option>
+            </select>
+          </div>
+          
+          <div class="filter-group">
+            <div class="filter-title en">Categories</div>
+            <div class="filter-title ur" style="display:none;">اقسام</div>
+            <select id="categoryFilter" class="en">
+              <option value="">All Categories</option>
+              <option value="Companion">Companions</option>
+              <option value="Tabi'i">Tabi'in</option>
+              <option value="Tabi' Tabi'i">Tabi' Tabi'in</option>
+              <option value="Scholar">Scholars</option>
+            </select>
+            <select id="categoryFilter" class="ur" style="display:none;">
+              <option value="">تمام اقسام</option>
+              <option value="Companion">صحابہ کرام</option>
+              <option value="Tabi'i">تابعین</option>
+              <option value="Tabi' Tabi'i">تبع تابعین</option>
+              <option value="Scholar">علماء</option>
+            </select>
+          </div>
+          
+          <div class="filter-group">
+            <div class="filter-title en">Areas of Interest</div>
+            <div class="filter-title ur" style="display:none;">دلچسپی کے شعبے</div>
+            <select id="areaFilter" class="en">
+              <option value="">All Areas</option>
+              <option value="Hadith">Hadith</option>
+              <option value="Fiqh">Fiqh</option>
+              <option value="Tafsir">Tafsir</option>
+              <option value="Recitation">Recitation</option>
+              <option value="Commander">Commander</option>
+            </select>
+            <select id="areaFilter" class="ur" style="display:none;">
+              <option value="">تمام شعبے</option>
+              <option value="Hadith">حدیث</option>
+              <option value="Fiqh">فقہ</option>
+              <option value="Tafsir">تفسیر</option>
+              <option value="Recitation">قرات</option>
+              <option value="Commander">کمانڈر</option>
+            </select>
+          </div>
+          
+          <button id="applyFilters" class="en">Apply Filters</button>
+          <button id="applyFilters" class="ur" style="display:none;">فلٹرز لاگو کریں</button>
+          <button id="resetFilters" class="en">Reset</button>
+          <button id="resetFilters" class="ur" style="display:none;">ری سیٹ</button>
+        </div>
+        
+        <div class="bookmarks-container">
+          <h3 class="en">Bookmarks</h3>
+          <h3 class="ur" style="display:none;">بک مارکس</h3>
+          <div id="bookmarksList" class="bookmarks-list"></div>
+        </div>
+      </aside>
+      
+      <main class="content">
+        <div class="tabs">
+          <div class="tab active" data-tab="list">
+            <span class="en">List View</span>
+            <span class="ur" style="display:none;">فہرست</span>
+          </div>
+          <div class="tab" data-tab="tree">
+            <span class="en">Tree View</span>
+            <span class="ur" style="display:none;">شجرہ</span>
+          </div>
+          <div class="tab" data-tab="graph">
+            <span class="en">Graph View</span>
+            <span class="ur" style="display:none;">گراف</span>
+          </div>
+          <div class="tab" data-tab="notes">
+            <span class="en">Notes</span>
+            <span class="ur" style="display:none;">نوٹس</span>
+          </div>
+        </div>
+        
+        <div id="listView" class="tab-content active">
+          <div id="narratorsList"></div>
+          <div class="pagination" id="pagination"></div>
+        </div>
+        
+        <div id="treeView" class="tab-content">
+          <div class="visualization-controls">
+            <button id="zoomIn">+</button>
+            <button id="zoomOut">-</button>
+            <button id="resetZoom" class="en">Reset</button>
+            <button id="resetZoom" class="ur" style="display:none;">ری سیٹ</button>
+            <button id="printTree" class="en">Print</button>
+            <button id="printTree" class="ur" style="display:none;">پرنٹ</button>
+          </div>
+          <div id="treeContainer" class="visualization-container"></div>
+        </div>
+        
+        <div id="graphView" class="tab-content">
+          <div class="visualization-controls">
+            <button id="zoomInGraph">+</button>
+            <button id="zoomOutGraph">-</button>
+            <button id="resetZoomGraph" class="en">Reset</button>
+            <button id="resetZoomGraph" class="ur" style="display:none;">ری سیٹ</button>
+            <button id="printGraph" class="en">Print</button>
+            <button id="printGraph" class="ur" style="display:none;">پرنٹ</button>
+            <button id="findPath" class="en">Find Path</button>
+            <button id="findPath" class="ur" style="display:none;">راستہ تلاش کریں</button>
+          </div>
+          <div id="graphContainer" class="visualization-container"></div>
+        </div>
+        
+        <div id="notesView" class="tab-content">
+          <div class="note-form">
+            <h3 class="en">Add New Note</h3>
+            <h3 class="ur" style="display:none;">نیا نوٹ شامل کریں</h3>
+            <select id="noteNarrator" class="en">
+              <option value="">Select Narrator</option>
+            </select>
+            <select id="noteNarrator" class="ur" style="display:none;">
+              <option value="">راوی کا انتخاب کریں</option>
+            </select>
+            <textarea id="noteText" class="en" placeholder="Enter your note here..."></textarea>
+            <textarea id="noteText" class="ur" style="display:none;" placeholder="اپنا نوٹ یہاں درج کریں..."></textarea>
+            <button id="saveNote" class="en">Save Note</button>
+            <button id="saveNote" class="ur" style="display:none;">نوٹ محفوظ کریں</button>
+          </div>
+          <div class="notes-container" id="notesList"></div>
+        </div>
+      </main>
+    </div>
+    </div>
+
+<!-- Modals -->
+
+  <div id="importModal" class="modal">
+    <div class="modal-content">
+      <div class="modal-header">
+        <h2 class="en">Import Data</h2>
+        <h2 class="ur" style="display:none;">ڈیٹا درآمد کریں</h2>
+        <span class="close">&times;</span>
+      </div>
+      <div class="modal-body">
+        <textarea id="importData" placeholder="Paste JSON data here..." rows="10"></textarea>
+        <button id="confirmImport" class="en">Import</button>
+        <button id="confirmImport" class="ur" style="display:none;">درآمد کریں</button>
+      </div>
+    </div>
+    </div>
+
+  <div id="pathModal" class="modal">
+    <div class="modal-content">
+      <div class="modal-header">
+        <h2 class="en">Find Relationship Path</h2>
+        <h2 class="ur" style="display:none;">رشتہ کا راستہ تلاش کریں</h2>
+        <span class="close">&times;</span>
+      </div>
+      <div class="modal-body">
+        <div class="form-group">
+          <label class="en">From Narrator:</label>
+          <label class="ur" style="display:none;">راوی سے:</label>
+          <select id="pathStart"></select>
+        </div>
+        <div class="form-group">
+          <label class="en">To Narrator:</label>
+          <label class="ur" style="display:none;">راوی تک:</label>
+          <select id="pathEnd"></select>
+        </div>
+        <button id="findPathBtn" class="en">Find Path</button>
+        <button id="findPathBtn" class="ur" style="display:none;">راستہ تلاش کریں</button>
+        <div id="pathResult"></div>
+      </div>
+    </div>
+    </div>
+
+  <div id="narratorModal" class="modal">
+    <div class="modal-content">
+      <div class="modal-header">
+        <h2 id="modalNarratorName"></h2>
+        <span class="close">&times;</span>
+      </div>
+      <div class="modal-body" id="modalNarratorDetails"></div>
+    </div>
+    </div>
+
+<script>
+// DB variables
+const dbName = 'isnadExplorerDB';
+const dbVersion = 1;
+let db;
+
+    // App state
+    const state = {
+      narrators: [],
+      filteredNarrators: [],
+      currentPage: 1,
+      itemsPerPage: 10,
+      selectedNarrator: null,
+      bookmarks: [],
+      notes: [],
+      lang: 'en',
+      theme: 'light',
+      csvLoaded: false
+    };
+    
+    // DOM Elements
+    const d = document;
+    const $ = (sel) => d.querySelector(sel);
+    const $$ = (sel) => d.querySelectorAll(sel);
+    
+    // Initialize IndexedDB
+    function initDB() {
+      return new Promise((resolve, reject) => {
+        const req = indexedDB.open(dbName, dbVersion);
+        
+        req.onerror = (e) => reject(`DB Error: ${e.target.errorCode}`);
+        
+        req.onupgradeneeded = (e) => {
+          const db = e.target.result;
+          
+          // Narrators store
+          if (!db.objectStoreNames.contains('narrators')) {
+            const store = db.createObjectStore('narrators', { keyPath: 'scholar_indx' });
+            store.createIndex('by_name', 'name', { unique: false });
+            store.createIndex('by_birth_date', 'birth_date_hijri', { unique: false });
+            store.createIndex('by_death_date', 'death_date_hijri', { unique: false });
+            store.createIndex('by_grade', 'grade', { unique: false });
+          }
+          
+          // Bookmarks store
+          if (!db.objectStoreNames.contains('bookmarks')) {
+            db.createObjectStore('bookmarks', { keyPath: 'id', autoIncrement: true });
+          }
+          
+          // Notes store
+          if (!db.objectStoreNames.contains('notes')) {
+            const notesStore = db.createObjectStore('notes', { keyPath: 'id', autoIncrement: true });
+            notesStore.createIndex('by_narrator', 'narrator_id', { unique: false });
+          }
+          
+          // Settings store
+          if (!db.objectStoreNames.contains('settings')) {
+            db.createObjectStore('settings', { keyPath: 'key' });
+          }
+        };
+        
+        req.onsuccess = (e) => {
+          db = e.target.result;
+          console.log('DB initialized');
+          
+          // Check if data is already loaded
+          checkDataLoaded().then(loaded => {
+            state.csvLoaded = loaded;
+            if (!loaded) {
+              loadInitialData();
+            } else {
+              loadNarratorsFromDB();
+            }
+            resolve(db);
+          });
+        };
+      });
+    }
+    
+    // Check if data is already loaded in DB
+    function checkDataLoaded() {
+      return new Promise((resolve) => {
+        const tx = db.transaction('settings', 'readonly');
+        const store = tx.objectStore('settings');
+        const req = store.get('dataLoaded');
+        
+        req.onsuccess = (e) => {
+          resolve(e.target.result?.value === true);
+        };
+        
+        req.onerror = () => resolve(false);
+      });
+    }
+    
+    // Load initial data from CSV
+    function loadInitialData() {
+      const loadingEl = d.createElement('div');
+      loadingEl.className = 'loading';
+      loadingEl.innerHTML = '<div class="spinner"></div><p class="en">Loading data...</p><p class="ur" style="display:none;">ڈیٹا لوڈ ہو رہا ہے...</p>';
+      $('#listView').appendChild(loadingEl);
+      
+      fetch('all_rawis.csv')
+        .then(response => response.text())
+        .then(csvData => {
+          parseCSV(csvData).then(() => {
+            loadingEl.remove();
+            // Mark data as loaded
+            const tx = db.transaction('settings', 'readwrite');
+            const store = tx.objectStore('settings');
+            store.put({ key: 'dataLoaded', value: true });
+            renderNarratorsList();
+            populateNarratorDropdowns();
+          });
+        })
+        .catch(error => {
+          console.error('Error loading CSV:', error);
+          loadingEl.innerHTML = `<p>Error loading data: ${error.message}</p>`;
+        });
+    }
+    
+    // Parse CSV and store in IndexedDB
+// Parse CSV and store in IndexedDB
+function parseCSV(csvText) {
+  return new Promise((resolve) => {
+    const lines = csvText.split('\n');
+    const headers = lines[0].split(',');
+    
+    const tx = db.transaction('narrators', 'readwrite');
+    const store = tx.objectStore('narrators');
+    
+    let processed = 0;
+    const total = lines.length - 1; // Exclude header
+    
+    for (let i = 1; i < lines.length; i++) {
+      if (!lines[i].trim()) continue;
+      
+      const values = parseCSVLine(lines[i]);
+      const narrator = {};
+      
+      headers.forEach((header, index) => {
+        let value = values[index] || '';
+        
+        // Handle arrays
+        if (header.endsWith('_inds') && value) {
+          value = value.split(',').map(v => v.trim());
+        }
+        
+        narrator[header] = value;
+      });
+      
+      // Store in IndexedDB
+      const req = store.put(narrator);
+      req.onsuccess = () => {
+        processed++;
+        if (processed === total) {
+          resolve();
+        }
+      };
+    }
+    
+    tx.oncomplete = () => {
+      loadNarratorsFromDB();
+    };
+  });
+}
+
+
+ 
+    // Parse CSV line handling quoted values
+    function parseCSVLine(line) {
+      const values = [];
+      let inQuotes = false;
+      let currentValue = '';
+      
+      for (let i = 0; i < line.length; i++) {
+        const char = line[i];
+        
+        if (char === '"' && (i === 0 || line[i-1] !== '\\')) {
+          inQuotes = !inQuotes;
+        } else if (char === ',' && !inQuotes) {
+          values.push(currentValue);
+          currentValue = '';
+        } else {
+          currentValue += char;
+        }
+      }
+      
+      values.push(currentValue);
+      return values;
+    }
+    
+    // Load narrators from IndexedDB
+    function loadNarratorsFromDB() {
+      const tx = db.transaction('narrators', 'readonly');
+      const store = tx.objectStore('narrators');
+      const req = store.openCursor();
+      
+      state.narrators = [];
+      
+      req.onsuccess = (e) => {
+        const cursor = e.target.result;
+        if (cursor) {
+          state.narrators.push(cursor.value);
+          cursor.continue();
+        } else {
+          state.filteredNarrators = [...state.narrators];
+          renderNarratorsList();
+          populateNarratorDropdowns();
+          loadBookmarks();
+          loadNotes();
+        }
+      };
+    }
+    
+    // Load bookmarks from DB
+    function loadBookmarks() {
+      const tx = db.transaction('bookmarks', 'readonly');
+      const store = tx.objectStore('bookmarks');
+      const req = store.getAll();
+      
+      req.onsuccess = (e) => {
+        state.bookmarks = e.target.result;
+        renderBookmarks();
+      };
+    }
+    
+    // Load notes from DB
+    function loadNotes() {
+      const tx = db.transaction('notes', 'readonly');
+      const store = tx.objectStore('notes');
+      const req = store.getAll();
+      
+      req.onsuccess = (e) => {
+        state.notes = e.target.result;
+        if ($('#notesView').classList.contains('active')) {
+          renderNotes();
+        }
+      };
+    }
+    
+    // Render narrators list
+    function renderNarratorsList() {
+      const list = $('#narratorsList');
+      list.innerHTML = '';
+      
+      const startIdx = (state.currentPage - 1) * state.itemsPerPage;
+      const endIdx = Math.min(startIdx + state.itemsPerPage, state.filteredNarrators.length);
+      
+      for (let i = startIdx; i < endIdx; i++) {
+        const narrator = state.filteredNarrators[i];
+        const card = createNarratorCard(narrator);
+        list.appendChild(card);
+      }
+      
+      renderPagination();
+    }
+    
+    // Create narrator card element
+    function createNarratorCard(narrator) {
+      const card = d.createElement('div');
+      card.className = 'narrator-card';
+      card.dataset.id = narrator.scholar_indx;
+      
+      const name = d.createElement('div');
+      name.className = 'narrator-name';
+      name.textContent = narrator.name;
+      card.appendChild(name);
+      
+      const info = d.createElement('div');
+      info.className = 'narrator-info';
+      
+      // Basic info
+      addInfoItem(info, 'Grade', narrator.grade);
+      addInfoItem(info, 'Birth', `${narrator.birth_date_hijri} AH / ${narrator.birth_date_gregorian} CE (${narrator.birth_place || 'unknown'})`);
+      addInfoItem(info, 'Death', `${narrator.death_date_hijri} AH / ${narrator.death_date_gregorian} CE (${narrator.death_place || 'unknown'})`);
+      addInfoItem(info, 'Area of Interest', narrator.area_of_interest);
+      
+      card.appendChild(info);
+      
+      // Relationships
+      const relationships = d.createElement('div');
+      relationships.className = 'relationship';
+      
+      if (narrator.teachers_inds && narrator.teachers_inds.length > 0 && narrator.teachers_inds !== '') {
+        addRelationshipSection(relationships, 'Teachers', narrator.teachers_inds);
+      }
+      
+      if (narrator.students_inds && narrator.students_inds.length > 0 && narrator.students_inds !== '') {
+        addRelationshipSection(relationships, 'Students', narrator.students_inds);
+      }
+      
+      card.appendChild(relationships);
+      
+      // Actions
+      const actions = d.createElement('div');
+      actions.className = 'card-actions';
+      
+      const viewBtn = d.createElement('button');
+      viewBtn.className = 'btn view-btn';
+      viewBtn.textContent = state.lang === 'en' ? 'View Details' : 'تفصیلات دیکھیں';
+      viewBtn.onclick = () => showNarratorDetails(narrator.scholar_indx);
+      
+      const bookmarkBtn = d.createElement('button');
+      bookmarkBtn.className = 'btn bookmark-btn';
+      const isBookmarked = state.bookmarks.some(b => b.narrator_id === narrator.scholar_indx);
+      bookmarkBtn.textContent = isBookmarked ? 
+        (state.lang === 'en' ? 'Remove Bookmark' : 'بک مارک ہٹائیں') : 
+        (state.lang === 'en' ? 'Bookmark' : 'بک مارک');
+      bookmarkBtn.onclick = () => toggleBookmark(narrator.scholar_indx);
+      
+      actions.appendChild(viewBtn);
+      actions.appendChild(bookmarkBtn);
+      card.appendChild(actions);
+      
+      return card;
+    }
+    
+    // Add info item to card
+    function addInfoItem(container, label, value) {
+      if (!value) return;
+      
+      const item = d.createElement('div');
+      item.className = 'info-item';
+      
+      const labelEl = d.createElement('span');
+      labelEl.className = 'info-label';
+      labelEl.textContent = state.lang === 'en' ? label : translateLabel(label);
+      
+      const valueEl = d.createElement('span');
+      valueEl.textContent = value;
+      
+      item.appendChild(labelEl);
+      item.appendChild(valueEl);
+      container.appendChild(item);
+    }
+    
+    // Add relationship section to card
+    function addRelationshipSection(container, label, ids) {
+      const section = d.createElement('div');
+      section.className = 'relationship-section';
+      
+      const title = d.createElement('div');
+      title.className = 'relationship-title';
+      title.textContent = state.lang === 'en' ? label : translateLabel(label);
+      section.appendChild(title);
+      
+      const list = d.createElement('div');
+      list.className = 'relationship-list';
+      
+      ids.forEach(id => {
+        const narrator = state.narrators.find(n => n.scholar_indx == id);
+        if (narrator) {
+          const item = d.createElement('span');
+          item.className = 'relationship-item';
+          item.textContent = narrator.name;
+          item.dataset.id = narrator.scholar_indx;
+          item.onclick = () => showNarratorDetails(narrator.scholar_indx);
+          list.appendChild(item);
+        }
+      });
+      
+      section.appendChild(list);
+      container.appendChild(section);
+    }
+    
+    // Render pagination controls
+    function renderPagination() {
+      const pagination = $('#pagination');
+      pagination.innerHTML = '';
+      
+      const totalPages = Math.ceil(state.filteredNarrators.length / state.itemsPerPage);
+      
+      // Previous button
+      const prevBtn = d.createElement('span');
+      prevBtn.className = 'page-btn prev';
+      prevBtn.innerHTML = '&laquo;';
+      prevBtn.onclick = () => {
+        if (state.currentPage > 1) {
+          state.currentPage--;
+          renderNarratorsList();
+        }
+      };
+      pagination.appendChild(prevBtn);
+      
+      // Page buttons
+      const maxButtons = 5;
+      let startPage = Math.max(1, state.currentPage - Math.floor(maxButtons / 2));
+      let endPage = Math.min(totalPages, startPage + maxButtons - 1);
+      
+      if (endPage - startPage + 1 < maxButtons) {
+        startPage = Math.max(1, endPage - maxButtons + 1);
+      }
+      
+      for (let i = startPage; i <= endPage; i++) {
+        const pageBtn = d.createElement('span');
+        pageBtn.className = 'page-btn' + (i === state.currentPage ? ' active' : '');
+        pageBtn.textContent = i;
+        pageBtn.onclick = () => {
+          state.currentPage = i;
+          renderNarratorsList();
+        };
+        pagination.appendChild(pageBtn);
+      }
+      
+      // Next button
+      const nextBtn = d.createElement('span');
+      nextBtn.className = 'page-btn next';
+      nextBtn.innerHTML = '&raquo;';
+      nextBtn.onclick = () => {
+        if (state.currentPage < totalPages) {
+          state.currentPage++;
+          renderNarratorsList();
+        }
+      };
+      pagination.appendChild(nextBtn);
+    }
+    
+    // Render bookmarks
+    function renderBookmarks() {
+      const list = $('#bookmarksList');
+      list.innerHTML = '';
+      
+      if (state.bookmarks.length === 0) {
+        const empty = d.createElement('div');
+        empty.className = 'empty-message';
+        empty.textContent = state.lang === 'en' ? 'No bookmarks yet' : 'ابھی تک کوئی بک مارک نہیں';
+        list.appendChild(empty);
+        return;
+      }
+      
+      state.bookmarks.forEach(bookmark => {
+        const narrator = state.narrators.find(n => n.scholar_indx == bookmark.narrator_id);
+        if (narrator) {
+          const item = d.createElement('div');
+          item.className = 'bookmark-item';
+          
+          const name = d.createElement('span');
+          name.textContent = narrator.name;
+          
+          const remove = d.createElement('span');
+          remove.className = 'remove-bookmark';
+          remove.innerHTML = '&times;';
+          remove.onclick = (e) => {
+            e.stopPropagation();
+            toggleBookmark(narrator.scholar_indx);
+          };
+          
+          item.appendChild(name);
+          item.appendChild(remove);
+          
+          item.onclick = () => showNarratorDetails(narrator.scholar_indx);
+          list.appendChild(item);
+        }
+      });
+    }
+    
+    // Toggle bookmark
+    function toggleBookmark(narratorId) {
+      const isBookmarked = state.bookmarks.some(b => b.narrator_id === narratorId);
+      
+      if (isBookmarked) {
+        // Remove bookmark
+        const tx = db.transaction('bookmarks', 'readwrite');
+        const store = tx.objectStore('bookmarks');
+        
+        const bookmark = state.bookmarks.find(b => b.narrator_id === narratorId);
+        if (bookmark) {
+          store.delete(bookmark.id);
+          state.bookmarks = state.bookmarks.filter(b => b.narrator_id !== narratorId);
+        }
+      } else {
+        // Add bookmark
+        const tx = db.transaction('bookmarks', 'readwrite');
+        const store = tx.objectStore('bookmarks');
+        
+        const bookmark = {
+          narrator_id: narratorId,
+          date_added: new Date()
+        };
+        
+        const req = store.add(bookmark);
+        req.onsuccess = (e) => {
+          bookmark.id = e.target.result;
+          state.bookmarks.push(bookmark);
+        };
+      }
+      
+      renderBookmarks();
+      renderNarratorsList(); // Update bookmark buttons
+    }
+    
+    // Render notes
+    function renderNotes() {
+      const list = $('#notesList');
+      list.innerHTML = '';
+      
+      if (state.notes.length === 0) {
+        const empty = d.createElement('div');
+        empty.className = 'empty-message';
+        empty.textContent = state.lang === 'en' ? 'No notes yet' : 'ابھی تک کوئی نوٹس نہیں';
+        list.appendChild(empty);
+        return;
+      }
+      
+      state.notes.forEach(note => {
+        const narrator = state.narrators.find(n => n.scholar_indx == note.narrator_id);
+        if (narrator) {
+          const noteEl = d.createElement('div');
+          noteEl.className = 'note';
+          
+          const header = d.createElement('div');
+          header.className = 'note-header';
+          
+          const title = d.createElement('strong');
+          title.textContent = narrator.name;
+          title.className = 'note-title';
+          
+          const date = d.createElement('span');
+          date.className = 'note-date';
+          date.textContent = new Date(note.date_added).toLocaleDateString();
+          
+          const remove = d.createElement('span');
+          remove.className = 'remove-note';
+          remove.innerHTML = '&times;';
+          remove.onclick = () => deleteNote(note.id);
+          
+          header.appendChild(title);
+          header.appendChild(date);
+          header.appendChild(remove);
+          
+          const content = d.createElement('div');
+          content.className = 'note-content';
+          content.textContent = note.text;
+          
+          noteEl.appendChild(header);
+          noteEl.appendChild(content);
+          list.appendChild(noteEl);
+        }
+      });
+    }
+    
+    // Save note
+    function saveNote() {
+      const narratorId = $('#noteNarrator').value;
+      const text = $('#noteText').value.trim();
+      
+      if (!narratorId || !text) {
+        alert(state.lang === 'en' ? 'Please select a narrator and enter a note' : 'براہ کرم راوی کا انتخاب کریں اور نوٹ درج کریں');
+        return;
+      }
+      
+      const tx = db.transaction('notes', 'readwrite');
+      const store = tx.objectStore('notes');
+      
+      const note = {
+        narrator_id: narratorId,
+        text: text,
+        date_added: new Date()
+      };
+      
+      const req = store.add(note);
+      req.onsuccess = (e) => {
+        note.id = e.target.result;
+        state.notes.push(note);
+        renderNotes();
+        $('#noteText').value = '';
+      };
+    }
+    
+    // Delete note
+    function deleteNote(noteId) {
+      const tx = db.transaction('notes', 'readwrite');
+      const store = tx.objectStore('notes');
+      
+      store.delete(noteId);
+      state.notes = state.notes.filter(n => n.id !== noteId);
+      renderNotes();
+    }
+    
+    // Populate narrator dropdowns
+    function populateNarratorDropdowns() {
+      const selects = [
+        $('#noteNarrator'),
+        $('#pathStart'),
+        $('#pathEnd')
+      ];
+      
+      selects.forEach(select => {
+        if (!select) return;
+        
+        // Clear existing options except the first one
+        while (select.options.length > 1) {
+          select.remove(1);
+        }
+        
+        // Add narrator options
+        state.narrators.forEach(narrator => {
+          const option = d.createElement('option');
+          option.value = narrator.scholar_indx;
+          option.textContent = narrator.name;
+          select.appendChild(option);
+        });
+      });
+    }
+    
+    // Show narrator details in modal
+    function showNarratorDetails(narratorId) {
+      const narrator = state.narrators.find(n => n.scholar_indx == narratorId);
+      if (!narrator) return;
+      
+      state.selectedNarrator = narrator;
+      
+      $('#modalNarratorName').textContent = narrator.name;
+      
+      const details = $('#modalNarratorDetails');
+      details.innerHTML = '';
+      
+      // Basic info
+      const info = d.createElement('div');
+      info.className = 'narrator-info';
+      
+      // Add all available fields
+      addInfoItem(info, 'Grade', narrator.grade);
+      addInfoItem(info, 'Birth', `${narrator.birth_date_hijri} AH / ${narrator.birth_date_gregorian} CE (${narrator.birth_place || 'unknown'})`);
+      addInfoItem(info, 'Death', `${narrator.death_date_hijri} AH / ${narrator.death_date_gregorian} CE (${narrator.death_place || 'unknown'})`);
+      if (narrator.death_reason) addInfoItem(info, 'Cause of Death', narrator.death_reason);
+      addInfoItem(info, 'Area of Interest', narrator.area_of_interest);
+      addInfoItem(info, 'Tags', narrator.tags);
+      addInfoItem(info, 'Places of Stay', narrator.places_of_stay);
+      addInfoItem(info, 'Parents', narrator.parents);
+      addInfoItem(info, 'Spouse', narrator.spouse);
+      addInfoItem(info, 'Siblings', narrator.siblings);
+      addInfoItem(info, 'Children', narrator.children);
+      addInfoItem(info, 'Books', narrator.books);
+      
+      details.appendChild(info);
+      
+      // Relationships
+      const relationships = d.createElement('div');
+      relationships.className = 'relationship';
+      
+      if (narrator.teachers_inds && narrator.teachers_inds.length > 0 && narrator.teachers_inds !== '') {
+        addRelationshipSection(relationships, 'Teachers', narrator.teachers_inds);
+      }
+      
+      if (narrator.students_inds && narrator.students_inds.length > 0 && narrator.students_inds !== '') {
+        addRelationshipSection(relationships, 'Students', narrator.students_inds);
+      }
+      
+      details.appendChild(relationships);
+      
+      // Actions
+      const actions = d.createElement('div');
+      actions.className = 'modal-actions';
+      
+      const bookmarkBtn = d.createElement('button');
+      bookmarkBtn.className = 'btn bookmark-btn';
+      const isBookmarked = state.bookmarks.some(b => b.narrator_id === narrator.scholar_indx);
+      bookmarkBtn.textContent = isBookmarked ? 
+        (state.lang === 'en' ? 'Remove Bookmark' : 'بک مارک ہٹائیں') : 
+        (state.lang === 'en' ? 'Bookmark' : 'بک مارک');
+      bookmarkBtn.onclick = () => toggleBookmark(narrator.scholar_indx);
+      
+      const addNoteBtn = d.createElement('button');
+      addNoteBtn.className = 'btn note-btn';
+      addNoteBtn.textContent = state.lang === 'en' ? 'Add Note' : 'نوٹ شامل کریں';
+      addNoteBtn.onclick = () => {
+        $('#narratorModal').style.display = 'none';
+        $('.tab').forEach(tab => tab.classList.remove('active'));
+        $('.tab-content').forEach(content => content.classList.remove('active'));
+        $('[data-tab="notes"]').classList.add('active');
+        $('#notesView').classList.add('active');
+        $('#noteNarrator').value = narrator.scholar_indx;
+        $('#noteText').focus();
+      };
+      
+      const viewTreeBtn = d.createElement('button');
+      viewTreeBtn.className = 'btn tree-btn';
+      viewTreeBtn.textContent = state.lang === 'en' ? 'View in Tree' : 'شجرہ میں دیکھیں';
+      viewTreeBtn.onclick = () => {
+        $('#narratorModal').style.display = 'none';
+        $('.tab').forEach(tab => tab.classList.remove('active'));
+        $('.tab-content').forEach(content => content.classList.remove('active'));
+        $('[data-tab="tree"]').classList.add('active');
+        $('#treeView').classList.add('active');
+        generateTree(narrator.scholar_indx);
+      };
+      
+      const viewGraphBtn = d.createElement('button');
+      viewGraphBtn.className = 'btn graph-btn';
+      viewGraphBtn.textContent = state.lang === 'en' ? 'View in Graph' : 'گراف میں دیکھیں';
+      viewGraphBtn.onclick = () => {
+        $('#narratorModal').style.display = 'none';
+        $('.tab').forEach(tab => tab.classList.remove('active'));
+        $('.tab-content').forEach(content => content.classList.remove('active'));
+        $('[data-tab="graph"]').classList.add('active');
+        $('#graphView').classList.add('active');
+        generateGraph(narrator.scholar_indx);
+      };
+      
+      actions.appendChild(bookmarkBtn);
+      actions.appendChild(addNoteBtn);
+      actions.appendChild(viewTreeBtn);
+      actions.appendChild(viewGraphBtn);
+      details.appendChild(actions);
+      
+      $('#narratorModal').style.display = 'block';
+    }
+    
+    // Generate tree visualization
+    function generateTree(narratorId) {
+      const container = $('#treeContainer');
+      container.innerHTML = '';
+      
+      // Simple tree implementation
+      const narrator = state.narrators.find(n => n.scholar_indx == narratorId);
+      if (!narrator) return;
+      
+      const tree = d.createElement('div');
+      tree.className = 'tree-root';
+      
+      const rootNode = createTreeNode(narrator);
+      tree.appendChild(rootNode);
+      
+      // Add teachers
+      if (narrator.teachers_inds && narrator.teachers_inds.length > 0 && narrator.teachers_inds !== '') {
+        const teachersContainer = d.createElement('div');
+        teachersContainer.className = 'tree-branch teachers';
+        
+        const teachersTitle = d.createElement('div');
+        teachersTitle.className = 'branch-title';
+        teachersTitle.textContent = state.lang === 'en' ? 'Teachers' : 'اساتذہ';
+        teachersContainer.appendChild(teachersTitle);
+        
+        const teachersNodes = d.createElement('div');
+        teachersNodes.className = 'branch-nodes';
+        
+        narrator.teachers_inds.forEach(id => {
+          const teacher = state.narrators.find(n => n.scholar_indx == id);
+          if (teacher) {
+            const node = createTreeNode(teacher);
+            teachersNodes.appendChild(node);
+          }
+        });
+        
+        teachersContainer.appendChild(teachersNodes);
+        tree.appendChild(teachersContainer);
+      }
+      
+      // Add students
+      if (narrator.students_inds && narrator.students_inds.length > 0 && narrator.students_inds !== '') {
+        const studentsContainer = d.createElement('div');
+        studentsContainer.className = 'tree-branch students';
+        
+        const studentsTitle = d.createElement('div');
+        studentsTitle.className = 'branch-title';
+        studentsTitle.textContent = state.lang === 'en' ? 'Students' : 'شاگرد';
+        studentsContainer.appendChild(studentsTitle);
+        
+        const studentsNodes = d.createElement('div');
+        studentsNodes.className = 'branch-nodes';
+        
+        narrator.students_inds.forEach(id => {
+          const student = state.narrators.find(n => n.scholar_indx == id);
+          if (student) {
+            const node = createTreeNode(student);
+            studentsNodes.appendChild(node);
+          }
+        });
+        
+        studentsContainer.appendChild(studentsNodes);
+        tree.appendChild(studentsContainer);
+      }
+      
+      container.appendChild(tree);
+    }
+    
+    // Create tree node
+    function createTreeNode(narrator) {
+      const node = d.createElement('div');
+      node.className = 'tree-node';
+      node.dataset.id = narrator.scholar_indx;
+      
+      const name = d.createElement('div');
+      name.className = 'node-name';
+      name.textContent = narrator.name;
+      
+      const info = d.createElement('div');
+      info.className = 'node-info';
+      info.textContent = `${narrator.birth_date_hijri || '?'} - ${narrator.death_date_hijri || '?'} AH`;
+      
+      node.appendChild(name);
+      node.appendChild(info);
+      
+      node.onclick = () => showNarratorDetails(narrator.scholar_indx);
+      
+      return node;
+    }
+    
+    // Generate graph visualization
+    function generateGraph(narratorId) {
+      const container = $('#graphContainer');
+      container.innerHTML = '';
+      
+      // Simple force-directed graph implementation
+      const narrator = state.narrators.find(n => n.scholar_indx == narratorId);
+      if (!narrator) return;
+      
+      // Create SVG
+      const svg = document.createElementNS('http://www.w3.org/2000/svg', 'svg');
+      svg.setAttribute('width', '100%');
+      svg.setAttribute('height', '100%');
+      svg.setAttribute('viewBox', '0 0 1000 600');
+      container.appendChild(svg);
+      
+      // Create nodes and links
+      const nodes = [];
+      const links = [];
+      
+      // Add root node
+      nodes.push({
+        id: narrator.scholar_indx,
+        name: narrator.name,
+        x: 500,
+        y: 300,
+        type: 'root'
+      });
+      
+      // Add teachers
+      if (narrator.teachers_inds && narrator.teachers_inds.length > 0 && narrator.teachers_inds !== '') {
+        narrator.teachers_inds.forEach(id => {
+          const teacher = state.narrators.find(n => n.scholar_indx == id);
+          if (teacher) {
+            nodes.push({
+              id: teacher.scholar_indx,
+              name: teacher.name,
+              x: 200 + Math.random() * 300,
+              y: 100 + Math.random() * 200,
+              type: 'teacher'
+            });
+            
+            links.push({
+              source: teacher.scholar_indx,
+              target: narrator.scholar_indx,
+              type: 'teacher'
+            });
+          }
+        });
+      }
+      
+      // Add students
+      if (narrator.students_inds && narrator.students_inds.length > 0 && narrator.students_inds !== '') {
+        narrator.students_inds.forEach(id => {
+          const student = state.narrators.find(n => n.scholar_indx == id);
+          if (student) {
+            nodes.push({
+              id: student.scholar_indx,
+              name: student.name,
+              x: 500 + Math.random() * 300,
+              y: 400 + Math.random() * 200,
+              type: 'student'
+            });
+            
+            links.push({
+              source: narrator.scholar_indx,
+              target: student.scholar_indx,
+              type: 'student'
+            });
+          }
+        });
+      }
+      
+      // Draw links
+      links.forEach(link => {
+        const source = nodes.find(n => n.id == link.source);
+        const target = nodes.find(n => n.id == link.target);
+        
+        const line = document.createElementNS('http://www.w3.org/2000/svg', 'line');
+        line.setAttribute('x1', source.x);
+        line.setAttribute('y1', source.y);
+        line.setAttribute('x2', target.x);
+        line.setAttribute('y2', target.y);
+        line.setAttribute('stroke', link.type === 'teacher' ? '#3498db' : '#2ecc71');
+        line.setAttribute('stroke-width', '2');
+        svg.appendChild(line);
+      });
+      
+      // Draw nodes
+      nodes.forEach(node => {
+        const g = document.createElementNS('http://www.w3.org/2000/svg', 'g');
+        g.setAttribute('transform', `translate(${node.x}, ${node.y})`);
+        g.setAttribute('data-id', node.id);
+        g.style.cursor = 'pointer';
+        
+        const circle = document.createElementNS('http://www.w3.org/2000/svg', 'circle');
+        circle.setAttribute('r', node.type === 'root' ? '30' : '20');
+        circle.setAttribute('fill', node.type === 'root' ? '#e74c3c' : 
+                                  node.type === 'teacher' ? '#3498db' : '#2ecc71');
+        
+        const text = document.createElementNS('http://www.w3.org/2000/svg', 'text');
+        text.setAttribute('text-anchor', 'middle');
+        text.setAttribute('dy', '0.3em');
+        text.setAttribute('fill', 'white');
+        text.textContent = node.name.split(' '); // Just show first name to save space
+        
+        g.appendChild(circle);
+        g.appendChild(text);
+        
+        g.onclick = () => showNarratorDetails(node.id);
+        
+        svg.appendChild(g);
+      });
+    }
+    
+    // Find path between narrators
+    function findNarratorPath(startId, endId) {
+      const result = $('#pathResult');
+      result.innerHTML = '';
+      
+      if (startId === endId) {
+        result.textContent = state.lang === 'en' ? 
+          'Start and end narrator are the same.' : 
+          'آغاز اور انجام کے راوی ایک ہی ہیں۔';
+        return;
+      }
+      
+      const start = state.narrators.find(n => n.scholar_indx == startId);
+      const end = state.narrators.find(n => n.scholar_indx == endId);
+      
+      if (!start || !end) {
+        result.textContent = state.lang === 'en' ? 
+          'Could not find one or both narrators.' : 
+          'ایک یا دونوں راوی نہیں مل سکے۔';
+        return;
+      }
+      
+      // Simple BFS implementation
+      const queue = [{
+        id: startId,
+        path: [{ id: startId, name: start.name }]
+      }];
+      const visited = new Set([startId]);
+      
+      while (queue.length > 0) {
+        const { id, path } = queue.shift();
+        const current = state.narrators.find(n => n.scholar_indx == id);
+        
+        // Check if we reached the end
+        if (id == endId) {
+          // Path found
+          renderPath(path);
+          return;
+        }
+        
+        // Check students
+        if (current.students_inds && current.students_inds.length > 0 && current.students_inds !== '') {
+          current.students_inds.forEach(studentId => {
+            if (!visited.has(studentId)) {
+              const student = state.narrators.find(n => n.scholar_indx == studentId);
+              if (student) {
+                visited.add(studentId);
+                queue.push({id: studentId,
+path: [...path, { id: studentId, name: student.name }]
+});
+}
+}
+});
+}
+
+        // Check teachers
+        if (current.teachers_inds && current.teachers_inds.length > 0 && current.teachers_inds !== '') {
+          current.teachers_inds.forEach(teacherId => {
+            if (!visited.has(teacherId)) {
+              const teacher = state.narrators.find(n => n.scholar_indx == teacherId);
+              if (teacher) {
+                visited.add(teacherId);
+                queue.push({
+                  id: teacherId,
+                  path: [...path, { id: teacherId, name: teacher.name }]
+                });
+              }
+            }
+          });
+        }
+      }
+      
+      // No path found
+      result.textContent = state.lang === 'en' ? 
+        'No path found between these narrators.' : 
+        'ان راویوں کے درمیان کوئی راستہ نہیں ملا۔';
+    }
+    
+    // Render path result
+    function renderPath(path) {
+      const result = $('#pathResult');
+      result.innerHTML = '';
+      
+      const title = d.createElement('h3');
+      title.textContent = state.lang === 'en' ? 'Path Found:' : 'راستہ مل گیا:';
+      result.appendChild(title);
+      
+      const pathContainer = d.createElement('div');
+      pathContainer.className = 'path-container';
+      
+      path.forEach((node, index) => {
+        const nodeEl = d.createElement('div');
+        nodeEl.className = 'path-node';
+        nodeEl.textContent = node.name;
+        nodeEl.onclick = () => showNarratorDetails(node.id);
+        
+        pathContainer.appendChild(nodeEl);
+        
+        if (index < path.length - 1) {
+          const arrow = d.createElement('div');
+          arrow.className = 'path-arrow';
+          arrow.innerHTML = '→';
+          pathContainer.appendChild(arrow);
+        }
+      });
+      
+      result.appendChild(pathContainer);
+    }
+    
+    // Export data to JSON
+    function exportData() {
+      const data = {
+        bookmarks: state.bookmarks,
+        notes: state.notes,
+        settings: {
+          lang: state.lang,
+          theme: state.theme
+        }
+      };
+      
+      const jsonStr = JSON.stringify(data, null, 2);
+      const blob = new Blob([jsonStr], { type: 'application/json' });
+      const url = URL.createObjectURL(blob);
+      
+      const a = d.createElement('a');
+      a.href = url;
+      a.download = 'isnad_explorer_data.json';
+      d.body.appendChild(a);
+      a.click();
+      d.body.removeChild(a);
+      URL.revokeObjectURL(url);
+    }
+    
+    // Import data from JSON
+    function importData() {
+      const jsonStr = $('#importData').value.trim();
+      if (!jsonStr) {
+        alert(state.lang === 'en' ? 'Please enter JSON data' : 'براہ کرم JSON ڈیٹا درج کریں');
+        return;
+      }
+      
+      try {
+        const data = JSON.parse(jsonStr);
+        
+        // Import bookmarks
+        if (data.bookmarks && Array.isArray(data.bookmarks)) {
+          const tx = db.transaction('bookmarks', 'readwrite');
+          const store = tx.objectStore('bookmarks');
+          
+          // Clear existing bookmarks
+          store.clear();
+          
+          // Add new bookmarks
+          data.bookmarks.forEach(bookmark => {
+            store.add(bookmark);
+          });
+          
+          state.bookmarks = data.bookmarks;
+        }
+        
+        // Import notes
+        if (data.notes && Array.isArray(data.notes)) {
+          const tx = db.transaction('notes', 'readwrite');
+          const store = tx.objectStore('notes');
+          
+          // Clear existing notes
+          store.clear();
+          
+          // Add new notes
+          data.notes.forEach(note => {
+            store.add(note);
+          });
+          
+          state.notes = data.notes;
+        }
+        
+        // Import settings
+        if (data.settings) {
+          if (data.settings.lang) {
+            setLanguage(data.settings.lang);
+          }
+          
+          if (data.settings.theme) {
+            setTheme(data.settings.theme);
+          }
+        }
+        
+        renderBookmarks();
+        renderNotes();
+        
+        $('#importModal').style.display = 'none';
+        alert(state.lang === 'en' ? 'Data imported successfully' : 'ڈیٹا کامیابی سے درآمد کیا گیا');
+      } catch (error) {
+        alert(state.lang === 'en' ? 'Invalid JSON data' : 'غلط JSON ڈیٹا');
+      }
+    }
+    
+    // Apply filters
+    function applyFilters() {
+      const searchText = $('#searchInput').value.toLowerCase();
+      const searchField = $('#searchField').value;
+      const century = $('#centuryFilter').value;
+      const category = $('#categoryFilter').value;
+      const area = $('#areaFilter').value;
+      
+      state.filteredNarrators = state.narrators.filter(narrator => {
+        // Search filter
+        if (searchText) {
+          const fieldValue = String(narrator[searchField] || '').toLowerCase();
+          if (!fieldValue.includes(searchText)) return false;
+        }
+        
+        // Century filter
+        if (century && narrator.death_date_hijri) {
+          const deathCentury = Math.ceil(parseInt(narrator.death_date_hijri) / 100);
+          if (deathCentury != century) return false;
+        }
+        
+        // Category filter
+        if (category && narrator.grade) {
+          if (!narrator.grade.includes(category)) return false;
+        }
+        
+        // Area filter
+        if (area && narrator.area_of_interest) {
+          if (!narrator.area_of_interest.includes(area)) return false;
+        }
+        
+        return true;
+      });
+      
+      state.currentPage = 1;
+      renderNarratorsList();
+    }
+    
+    // Reset filters
+    function resetFilters() {
+      $('#searchInput').value = '';
+      $('#searchField').selectedIndex = 0;
+      $('#centuryFilter').selectedIndex = 0;
+      $('#categoryFilter').selectedIndex = 0;
+      $('#areaFilter').selectedIndex = 0;
+      
+      state.filteredNarrators = [...state.narrators];
+      state.currentPage = 1;
+      renderNarratorsList();
+    }
+    
+    // Set language
+    function setLanguage(lang) {
+      state.lang = lang;
+      document.dir = lang === 'ur' ? 'rtl' : 'ltr';
+      
+      // Update UI elements
+      $$('.en').forEach(el => {
+        el.style.display = lang === 'en' ? '' : 'none';
+      });
+      
+      $$('.ur').forEach(el => {
+        el.style.display = lang === 'ur' ? '' : 'none';
+      });
+      
+      // Re-render views
+      renderNarratorsList();
+      renderBookmarks();
+      if ($('#notesView').classList.contains('active')) {
+        renderNotes();
+      }
+    }
+    
+    // Set theme
+    function setTheme(theme) {
+      state.theme = theme;
+      document.documentElement.setAttribute('data-theme', theme);
+      $('#themeIcon').textContent = theme === 'dark' ? '☀️' : '🌙';
+    }
+    
+    // Translate label
+    function translateLabel(label) {
+      const translations = {
+        'Grade': 'درجہ',
+        'Birth': 'پیدائش',
+        'Death': 'وفات',
+        'Area of Interest': 'دلچسپی کا شعبہ',
+        'Teachers': 'اساتذہ',
+        'Students': 'شاگرد',
+        'Cause of Death': 'وفات کی وجہ',
+        'Parents': 'والدین',
+        'Spouse': 'زوجہ',
+        'Siblings': 'بھائی بہن',
+        'Children': 'اولاد',
+        'Books': 'کتابیں',
+        'Tags': 'ٹیگز',
+        'Places of Stay': 'قیام کے مقامات'
+      };
+      
+      return translations[label] || label;
+    }
+    
+    // Event listeners
+    function setupEventListeners() {
+      // Tabs
+      $$('.tab').forEach(tab => {
+        tab.addEventListener('click', () => {
+          $$('.tab').forEach(t => t.classList.remove('active'));
+          $$('.tab-content').forEach(c => c.classList.remove('active'));
+          
+          tab.classList.add('active');
+          $(`#${tab.dataset.tab}View`).classList.add('active');
+          
+          if (tab.dataset.tab === 'tree' && state.selectedNarrator) {
+            generateTree(state.selectedNarrator.scholar_indx);
+          } else if (tab.dataset.tab === 'graph' && state.selectedNarrator) {
+            generateGraph(state.selectedNarrator.scholar_indx);
+          } else if (tab.dataset.tab === 'notes') {
+            renderNotes();
+          }
+        });
+      });
+      
+      // Language toggle
+      $('#langToggle').addEventListener('change', (e) => {
+        setLanguage(e.target.checked ? 'ur' : 'en');
+      });
+      
+      // Theme toggle
+      $('#themeToggle').addEventListener('change', (e) => {
+        setTheme(e.target.checked ? 'dark' : 'light');
+      });
+      
+      // Filters
+      $('#applyFilters').addEventListener('click', applyFilters);
+      $('#resetFilters').addEventListener('click', resetFilters);
+      $('#searchInput').addEventListener('keyup', (e) => {
+        if (e.key === 'Enter') {
+          applyFilters();
+        }
+      });
+      
+      // Notes
+      $('#saveNote').addEventListener('click', saveNote);
+      
+      // Import/Export
+      $('#exportBtn').addEventListener('click', exportData);
+      $('#importBtn').addEventListener('click', () => {
+        $('#importModal').style.display = 'block';
+      });
+      $('#confirmImport').addEventListener('click', importData);
+      
+      // Path finding
+      $('#findPath').addEventListener('click', () => {
+        $('#pathModal').style.display = 'block';
+      });
+      $('#findPathBtn').addEventListener('click', () => {
+        findNarratorPath($('#pathStart').value, $('#pathEnd').value);
+      });
+      
+      // Close modals
+      $$('.close').forEach(close => {
+        close.addEventListener('click', () => {
+          $$('.modal').forEach(modal => {
+            modal.style.display = 'none';
+          });
+        });
+      });
+      
+      window.addEventListener('click', (e) => {
+        $$('.modal').forEach(modal => {
+          if (e.target === modal) {
+            modal.style.display = 'none';
+          }
+        });
+      });
+      
+      // Visualization controls
+$('#zoomIn').addEventListener('click', () => {
+  const container = $('#treeContainer');
+  const scaleMatch = container.style.transform?.match(/scale\(([^)]+)\)/);
+  const currentScale = parseFloat(scaleMatch ? scaleMatch[1] : 1);
+  container.style.transform = `scale(${currentScale * 1.2})`;
+});
+
+$('#zoomOut').addEventListener('click', () => {
+  const container = $('#treeContainer');
+  const scaleMatch = container.style.transform?.match(/scale\(([^)]+)\)/);
+  const currentScale = parseFloat(scaleMatch ? scaleMatch[1] : 1);
+  container.style.transform = `scale(${currentScale / 1.2})`;
+});
+      $('#resetZoom').addEventListener('click', () => {
+        $('#treeContainer').style.transform = 'scale(1)';
+      });
+      
+      $('#printTree').addEventListener('click', () => {
+        const content = $('#treeContainer').innerHTML;
+        const win = window.open('', '_blank');
+        win.document.write(`
+          <html>
+            <head>
+              <title>Isnad Tree</title>
+              <style>
+                body { font-family: Arial; }
+                .tree-root { padding: 20px; }
+                .tree-node { padding: 10px; border: 1px solid #ddd; margin: 5px; display: inline-block; }
+              </style>
+            </head>
+            <body>${content}</body>
+          </html>
+        `);
+        win.document.close();
+        win.print();
+      });
+      
+      // Graph controls (similar to tree controls)
+     const graphBtns = ['#zoomInGraph', '#zoomOutGraph', '#resetZoomGraph', '#printGraph'];
+graphBtns.forEach(selector => {
+  $(selector).addEventListener('click', () => {
+    // Similar implementation as tree controls
+  });
+});
+    }
+    
+    // Initialize app
+    function init() {
+      // Load web fonts
+      const link = d.createElement('link');
+      link.rel = 'stylesheet';
+      link.href = 'https://fonts.googleapis.com/css2?family=Noto+Sans+Arabic:wght@400;700&family=Noto+Nastaliq+Urdu:wght@400;700&display=swap';
+      d.head.appendChild(link);
+      
+      initDB().then(() => {
+        setupEventListeners();
+        
+        // Load settings
+        const tx = db.transaction('settings', 'readonly');
+        const store = tx.objectStore('settings');
+        
+        const langReq = store.get('language');
+        langReq.onsuccess = (e) => {
+          if (e.target.result) {
+            setLanguage(e.target.result.value);
+            $('#langToggle').checked = e.target.result.value === 'ur';
+          }
+        };
+        
+        const themeReq = store.get('theme');
+        themeReq.onsuccess = (e) => {
+          if (e.target.result) {
+            setTheme(e.target.result.value);
+            $('#themeToggle').checked = e.target.result.value === 'dark';
+          }
+        };
+      }).catch(err => {
+        console.error('Failed to initialize DB:', err);
+      });
+    }
+    
+    // Start the app
+    document.addEventListener('DOMContentLoaded', init);
+    </script>
+</body>
+</html>
