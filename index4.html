@@ -1,0 +1,2547 @@
+
+<!DOCTYPE html>
+<html>
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Isnad Narrators Explorer</title>
+    <style>
+        :root {
+            --primary: #1e88e5;
+            --secondary: #5e35b1;
+            --accent: #ff4081;
+            --bg-light: #f5f5f5;
+            --bg-dark: #121212;
+            --text-light: #212121;
+            --text-dark: #f5f5f5;
+            --card-light: #ffffff;
+            --card-dark: #1e1e1e;
+            --border-light: #e0e0e0;
+            --border-dark: #333333;
+            --success: #4caf50;
+            --warning: #ff9800;
+            --error: #f44336;
+            --font-ar: 'Noto Naskh Arabic', 'Traditional Arabic', serif;
+            --font-en: 'Poppins', sans-serif;
+            --direction: ltr;
+        }
+
+        [data-theme="dark"] {
+            --bg: var(--bg-dark);
+            --text: var(--text-dark);
+            --card: var(--card-dark);
+            --border: var(--border-dark);
+        }
+
+        [data-theme="light"] {
+            --bg: var(--bg-light);
+            --text: var(--text-light);
+            --card: var(--card-light);
+            --border: var(--border-light);
+        }
+
+        [data-lang="ur"] {
+            --direction: rtl;
+            font-family: var(--font-ar);
+        }
+
+        [data-lang="en"] {
+            --direction: ltr;
+            font-family: var(--font-en);
+        }
+
+        * {
+            box-sizing: border-box;
+            margin: 0;
+            padding: 0;
+            transition: all 0.3s ease;
+        }
+
+        body {
+            background-color: var(--bg);
+            color: var(--text);
+            font-family: var(--font-en);
+            direction: var(--direction);
+            overflow-x: hidden;
+        }
+
+        .container {
+            max-width: 1200px;
+            margin: 0 auto;
+            padding: 1rem;
+        }
+
+        header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding: 1rem 0;
+            border-bottom: 1px solid var(--border);
+        }
+
+        .logo {
+            font-size: 1.5rem;
+            font-weight: bold;
+            color: var(--primary);
+        }
+
+        .controls {
+            display: flex;
+            gap: 1rem;
+        }
+
+        button, .btn {
+            background: var(--primary);
+            color: white;
+            border: none;
+            padding: 0.5rem 1rem;
+            border-radius: 0.25rem;
+            cursor: pointer;
+            font-weight: 500;
+        }
+
+        button:hover, .btn:hover {
+            opacity: 0.9;
+            transform: translateY(-2px);
+        }
+
+        button.secondary {
+            background: var(--secondary);
+        }
+
+        button.accent {
+            background: var(--accent);
+        }
+
+        .card {
+            background: var(--card);
+            border-radius: 0.5rem;
+            padding: 1.5rem;
+            margin: 1rem 0;
+            box-shadow: 0 4px 6px rgba(0,0,0,0.1);
+            border: 1px solid var(--border);
+        }
+
+        input, select, textarea {
+            width: 100%;
+            padding: 0.75rem;
+            border: 1px solid var(--border);
+            border-radius: 0.25rem;
+            background: var(--card);
+            color: var(--text);
+            margin-bottom: 1rem;
+        }
+
+        .search-bar {
+            display: flex;
+            gap: 0.5rem;
+            margin-bottom: 1rem;
+        }
+
+        .search-bar input {
+            flex: 1;
+            margin-bottom: 0;
+        }
+
+        .tabs {
+            display: flex;
+            border-bottom: 1px solid var(--border);
+            margin-bottom: 1rem;
+        }
+
+        .tab {
+            padding: 0.75rem 1.5rem;
+            cursor: pointer;
+            opacity: 0.7;
+        }
+
+        .tab.active {
+            border-bottom: 3px solid var(--primary);
+            opacity: 1;
+            font-weight: 500;
+        }
+
+        .grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fill, minmax(300px, 1fr));
+            gap: 1rem;
+        }
+
+        .narrator-card {
+            cursor: pointer;
+            transition: transform 0.3s ease;
+        }
+
+        .narrator-card:hover {
+            transform: translateY(-5px);
+        }
+
+        .narrator-name {
+            font-size: 1.2rem;
+            font-weight: 600;
+            margin-bottom: 0.5rem;
+            color: var(--primary);
+        }
+
+        .narrator-details {
+            margin-top: 0.5rem;
+            font-size: 0.9rem;
+        }
+
+        .tag {
+            display: inline-block;
+            background: var(--secondary);
+            color: white;
+            padding: 0.25rem 0.5rem;
+            border-radius: 0.25rem;
+            font-size: 0.8rem;
+            margin: 0.25rem;
+        }
+
+        .modal {
+            position: fixed;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            background: rgba(0,0,0,0.7);
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            z-index: 100;
+            opacity: 0;
+            pointer-events: none;
+            transition: opacity 0.3s ease;
+        }
+
+        .modal.active {
+            opacity: 1;
+            pointer-events: auto;
+        }
+
+        .modal-content {
+            background: var(--card);
+            padding: 2rem;
+            border-radius: 0.5rem;
+            width: 90%;
+            max-width: 800px;
+            max-height: 90vh;
+            overflow-y: auto;
+            position: relative;
+            transform: translateY(20px);
+            transition: transform 0.3s ease;
+        }
+
+        .modal.active .modal-content {
+            transform: translateY(0);
+        }
+
+        .close-modal {
+            position: absolute;
+            top: 1rem;
+            right: 1rem;
+            background: none;
+            border: none;
+            font-size: 1.5rem;
+            cursor: pointer;
+            color: var(--text);
+        }
+
+        .loader {
+            display: inline-block;
+            width: 50px;
+            height: 50px;
+            border: 3px solid rgba(255,255,255,.3);
+            border-radius: 50%;
+            border-top-color: var(--primary);
+            animation: spin 1s ease-in-out infinite;
+        }
+
+        @keyframes spin {
+            to { transform: rotate(360deg); }
+        }
+
+        .loading-overlay {
+            position: fixed;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            background: rgba(0,0,0,0.8);
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            z-index: 1000;
+        }
+
+        .hidden {
+            display: none;
+        }
+
+        .tabs-content > div {
+            display: none;
+        }
+
+        .tabs-content > div.active {
+            display: block;
+        }
+
+        .tree-container {
+            width: 100%;
+            height: 600px;
+            overflow: hidden;
+            position: relative;
+        }
+
+        .tree-node {
+            position: absolute;
+            background: var(--card);
+            border: 2px solid var(--primary);
+            padding: 0.5rem;
+            border-radius: 0.5rem;
+            min-width: 120px;
+            text-align: center;
+            transform-origin: center;
+            transition: all 0.5s cubic-bezier(0.175, 0.885, 0.32, 1.275);
+        }
+
+        .tree-link {
+            position: absolute;
+            background: var(--secondary);
+            height: 2px;
+            transform-origin: left center;
+            z-index: -1;
+        }
+
+        .bookmark-icon {
+            cursor: pointer;
+            color: var(--border);
+        }
+
+        .bookmark-icon.active {
+            color: var(--warning);
+        }
+
+        .tooltip {
+            position: relative;
+            display: inline-block;
+        }
+
+        .tooltip .tooltip-text {
+            visibility: hidden;
+            background-color: var(--bg-dark);
+            color: var(--text-dark);
+            text-align: center;
+            border-radius: 6px;
+            padding: 5px;
+            position: absolute;
+            z-index: 1;
+            bottom: 125%;
+            left: 50%;
+            transform: translateX(-50%);
+            opacity: 0;
+            transition: opacity 0.3s;
+        }
+
+        .tooltip:hover .tooltip-text {
+            visibility: visible;
+            opacity: 1;
+        }
+
+        .category-badge {
+            background: var(--accent);
+            color: white;
+            padding: 0.25rem 0.5rem;
+            border-radius: 0.25rem;
+            font-size: 0.8rem;
+            margin: 0.25rem;
+            display: inline-block;
+        }
+
+        @keyframes fadeIn {
+            from { opacity: 0; }
+            to { opacity: 1; }
+        }
+
+        .fade-in {
+            animation: fadeIn 0.5s ease-in;
+        }
+
+        @media (max-width: 768px) {
+            .grid {
+                grid-template-columns: 1fr;
+            }
+            
+            header {
+                flex-direction: column;
+                gap: 1rem;
+                align-items: flex-start;
+            }
+            
+            .controls {
+                width: 100%;
+                flex-wrap: wrap;
+            }
+            
+            .search-bar {
+                flex-direction: column;
+            }
+            
+            .tabs {
+                overflow-x: auto;
+                width: 100%;
+            }
+        }
+
+        .switch {
+            position: relative;
+            display: inline-block;
+            width: 60px;
+            height: 34px;
+        }
+
+        .switch input {
+            opacity: 0;
+            width: 0;
+            height: 0;
+        }
+
+        .slider {
+            position: absolute;
+            cursor: pointer;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            background-color: #ccc;
+            transition: .4s;
+            border-radius: 34px;
+        }
+
+        .slider:before {
+            position: absolute;
+            content: "";
+            height: 26px;
+            width: 26px;
+            left: 4px;
+            bottom: 4px;
+            background-color: white;
+            transition: .4s;
+            border-radius: 50%;
+        }
+
+        input:checked + .slider {
+            background-color: var(--primary);
+        }
+
+        input:checked + .slider:before {
+            transform: translateX(26px);
+        }
+
+        .onboarding-step {
+            display: none;
+        }
+
+        .onboarding-step.active {
+            display: block;
+            animation: fadeIn 0.5s ease;
+        }
+
+        .pagination {
+            display: flex;
+            justify-content: center;
+            gap: 0.5rem;
+            margin: 1rem 0;
+        }
+
+        .pagination button {
+            padding: 0.25rem 0.5rem;
+        }
+
+        .pagination button.active {
+            background: var(--secondary);
+        }
+
+        .note-area {
+            background: rgba(255, 255, 0, 0.1);
+            border: 1px dashed var(--warning);
+            padding: 0.5rem;
+            margin-top: 1rem;
+        }
+
+        #visualizationTab .controls {
+            margin-bottom: 1rem;
+        }
+
+        .context-menu {
+            position: absolute;
+            z-index: 1000;
+            background: var(--card);
+            border: 1px solid var(--border);
+            border-radius: 0.25rem;
+            padding: 0.5rem;
+            box-shadow: 0 2px 5px rgba(0,0,0,0.2);
+        }
+
+        .context-menu ul {
+            list-style: none;
+        }
+
+        .context-menu li {
+            padding: 0.5rem 1rem;
+            cursor: pointer;
+        }
+
+        .context-menu li:hover {
+            background: rgba(0,0,0,0.1);
+        }
+    </style>
+    <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@300;400;500;600;700&family=Noto+Naskh+Arabic:wght@400;500;600;700&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.8.1/font/bootstrap-icons.css">
+</head>
+<body data-theme="light" data-lang="en">
+<div id="loading" class="loading-overlay">
+<div class="loader"></div>
+</div>
+
+    <div id="onboarding" class="modal">
+        <div class="modal-content">
+            <button class="close-modal" id="closeOnboarding">&times;</button>
+            <div class="onboarding-step active" id="step1">
+                <h2>Welcome to Isnad Narrators Explorer</h2>
+                <p>This application will help you explore the relationships between Hadith narrators, their teachers, students, and family connections.</p>
+                <button class="btn next-step">Next</button>
+            </div>
+            <div class="onboarding-step" id="step2">
+                <h2>Searching and Filtering</h2>
+                <p>Use the search bar to find narrators. Filter by different criteria to narrow down your results.</p>
+                <div class="controls">
+                    <button class="btn prev-step">Previous</button>
+                    <button class="btn next-step">Next</button>
+                </div>
+            </div>
+            <div class="onboarding-step" id="step3">
+                <h2>Visualization</h2>
+                <p>Explore the connections between narrators visually through the tree view and infographics.</p>
+                <div class="controls">
+                    <button class="btn prev-step">Previous</button>
+                    <button class="btn next-step">Next</button>
+                </div>
+            </div>
+            <div class="onboarding-step" id="step4">
+                <h2>Personalization</h2>
+                <p>Add your own notes, bookmark narrators, and create custom categories to organize your research.</p>
+                <div class="controls">
+                    <button class="btn prev-step">Previous</button>
+                    <button class="btn next-step">Next</button>
+                </div>
+            </div>
+            <div class="onboarding-step" id="step5">
+                <h2>Data Management</h2>
+                <p>Import and export your data as JSON to backup or share your research.</p>
+                <div class="controls">
+                    <button class="btn prev-step">Previous</button>
+                    <button class="btn" id="completeOnboarding">Get Started</button>
+                </div>
+            </div>
+        </div>
+    </div>
+    
+    <div id="disclaimerModal" class="modal">
+        <div class="modal-content">
+            <h2>Disclaimer</h2>
+            <p>Isnad Narrators Explorer is an educational tool designed to facilitate the study of Hadith narrators and their relationships. The information provided is based on available data and should be verified with authoritative sources.</p>
+            <p>This application is not a substitute for formal Islamic education or scholarly guidance.</p>
+            <div class="controls">
+                <label>
+                    <input type="checkbox" id="dontShowAgain">
+                    Don't show again
+                </label>
+                <button id="acceptDisclaimer" class="btn">Accept</button>
+            </div>
+        </div>
+    </div>
+    
+    <div id="narratorModal" class="modal">
+        <div class="modal-content">
+            <button class="close-modal" id="closeNarratorModal">&times;</button>
+            <div id="narratorDetails"></div>
+        </div>
+    </div>
+    
+    <div id="settingsModal" class="modal">
+        <div class="modal-content">
+            <button class="close-modal" id="closeSettingsModal">&times;</button>
+            <h2>Settings</h2>
+            
+            <h3>Theme</h3>
+            <div class="controls">
+                <label class="switch">
+                    <input type="checkbox" id="themeToggle">
+                    <span class="slider"></span>
+                </label>
+                <span id="themeLabel">Light Mode</span>
+            </div>
+            
+            <h3>Language</h3>
+            <div class="controls">
+                <label class="switch">
+                    <input type="checkbox" id="langToggle">
+                    <span class="slider"></span>
+                </label>
+                <span id="langLabel">English</span>
+            </div>
+            
+            <h3>Categories</h3>
+            <div id="categoriesList">
+                <div id="categoryItems"></div>
+                <div class="controls">
+                    <input type="text" id="newCategory" placeholder="New category name">
+                    <button id="addCategory" class="btn">Add</button>
+                </div>
+            </div>
+    
+            <h3>Data Management</h3>
+            <div class="controls">
+                <button id="exportData" class="btn">Export All Data</button>
+                <button id="importData" class="btn secondary">Import Data</button>
+                <input type="file" id="importFile" class="hidden" accept=".json">
+            </div>
+    
+            <h3>Application</h3>
+            <div class="controls">
+                <button id="resetOnboarding" class="btn">Reset Onboarding</button>
+                <button id="resetDisclaimer" class="btn">Reset Disclaimer</button>
+                <button id="clearData" class="btn accent">Clear All Data</button>
+            </div>
+        </div>
+    </div>
+    
+    <div class="container">
+        <header>
+            <div class="logo">Isnad Narrators Explorer</div>
+            <div class="controls">
+                <button id="settingsBtn"><i class="bi bi-gear"></i></button>
+                <button id="helpBtn"><i class="bi bi-question-circle"></i></button>
+            </div>
+        </header>
+    
+        <div class="search-bar">
+            <input type="text" id="searchInput" placeholder="Search narrators...">
+            <select id="filterField">
+                <option value="all">All Fields</option>
+                <option value="name">Name</option>
+                <option value="grade">Grade</option>
+                <option value="birth_place">Birth Place</option>
+                <option value="death_place">Death Place</option>
+                <option value="tags">Tags</option>
+            </select>
+            <button id="searchBtn">Search</button>
+        </div>
+    
+        <div class="tabs">
+            <div class="tab active" data-tab="narrators">Narrators</div>
+            <div class="tab" data-tab="visualization">Visualization</div>
+            <div class="tab" data-tab="bookmarks">Bookmarks</div>
+            <div class="tab" data-tab="categories">Categories</div>
+        </div>
+    
+        <div class="tabs-content">
+            <div id="narratorsTab" class="active">
+                <div class="card">
+                    <div class="controls">
+                        <select id="sortField">
+                            <option value="name">Sort by Name</option>
+                            <option value="birth_date_gregorian">Sort by Birth Date</option>
+                            <option value="death_date_gregorian">Sort by Death Date</option>
+                        </select>
+                        <select id="sortDirection">
+                            <option value="asc">Ascending</option>
+                            <option value="desc">Descending</option>
+                        </select>
+                    </div>
+    
+                    <div id="narratorsList" class="grid"></div>
+                    
+                    <div class="pagination" id="pagination"></div>
+                </div>
+            </div>
+            
+            <div id="visualizationTab">
+                <div class="card">
+                    <div class="controls">
+                        <select id="visualizationType">
+                            <option value="tree">Tree View</option>
+                            <option value="timeline">Timeline</option>
+                            <option value="network">Network Graph</option>
+                        </select>
+                        <select id="relationshipType">
+                            <option value="teachers">Teacher-Student</option>
+                            <option value="family">Family Relations</option>
+                        </select>
+                        <input type="text" id="visualizationSearch" placeholder="Search to visualize...">
+                        <button id="visualizeBtn">Visualize</button>
+                    </div>
+                    
+                    <div id="visualizationContainer" class="tree-container"></div>
+                </div>
+            </div>
+            
+            <div id="bookmarksTab">
+                <div class="card">
+                    <h3>Your Bookmarked Narrators</h3>
+                    <div id="bookmarksList" class="grid"></div>
+                </div>
+            </div>
+            
+            <div id="categoriesTab">
+                <div class="card">
+                    <h3>Categories</h3>
+                    <div id="categoriesContent">
+                        <div id="categoriesMenu"></div>
+                        <div id="categoryNarrators" class="grid"></div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+    
+    <script>
+        // Core application
+        const app = {
+            db: null,
+            narrators: [],
+            displayedNarrators: [],
+            bookmarks: [],
+            notes: {},
+            categories: {},
+            settings: {
+                theme: 'light',
+                language: 'en',
+                showDisclaimer: true,
+                onboardingCompleted: false,
+                itemsPerPage: 12
+            },
+            currentPage: 1,
+            translations: {
+                en: {
+                    search: "Search narrators...",
+                    settings: "Settings",
+                    help: "Help",
+                    narrators: "Narrators",
+                    visualization: "Visualization",
+                    bookmarks: "Bookmarks",
+                    categories: "Categories",
+                    sortByName: "Sort by Name",
+                    sortByBirth: "Sort by Birth Date",
+                    sortByDeath: "Sort by Death Date",
+                    ascending: "Ascending",
+                    descending: "Descending",
+                    treeView: "Tree View",
+                    timeline: "Timeline",
+                    network: "Network Graph",
+                    teacherStudent: "Teacher-Student",
+                    familyRelations: "Family Relations",
+                    visualize: "Visualize",
+                    yourBookmarks: "Your Bookmarked Narrators",
+                    addNote: "Add Note",
+                    saveNote: "Save Note",
+                    addToCategory: "Add to Category",
+                    theme: "Theme",
+                    lightMode: "Light Mode",
+                    darkMode: "Dark Mode",
+                    language: "Language",
+                    english: "English",
+                    urdu: "اردو",
+                    dataManagement: "Data Management",
+                    exportData: "Export All Data",
+                    importData: "Import Data",
+                    resetOnboarding: "Reset Onboarding",
+                    resetDisclaimer: "Reset Disclaimer",
+                    clearData: "Clear All Data",
+                    birthDate: "Birth Date",
+                    deathDate: "Death Date",
+                    birthPlace: "Birth Place",
+                    deathPlace: "Death Place",
+                    teachers: "Teachers",
+                    students: "Students",
+                    family: "Family",
+                    addBookmark: "Add Bookmark",
+                    removeBookmark: "Remove Bookmark",
+                    newCategory: "New category name",
+                    add: "Add",
+                    welcome: "Welcome to Isnad Narrators Explorer",
+                    next: "Next",
+                    previous: "Previous",
+                    getStarted: "Get Started",
+                    disclaimer: "Disclaimer"
+                },
+                ur: {
+                    search: "راوی تلاش کریں...",
+                    settings: "ترتیبات",
+                    help: "مدد",
+                    narrators: "راویان",
+                    visualization: "بصری نمائش",
+                    bookmarks: "بک مارکس",
+                    categories: "زمرہ جات",
+                    sortByName: "نام کے لحاظ سے ترتیب دیں",
+                    sortByBirth: "تاریخ پیدائش کے لحاظ سے ترتیب دیں",
+                    sortByDeath: "تاریخ وفات کے لحاظ سے ترتیب دیں",
+                    ascending: "صعودی",
+                    descending: "نزولی",
+                    treeView: "درختی نقشہ",
+                    timeline: "ٹائم لائن",
+                    network: "نیٹ ورک گراف",
+                    teacherStudent: "استاد-شاگرد",
+                    familyRelations: "خاندانی تعلقات",
+                    visualize: "بصری نمائش",
+                    yourBookmarks: "آپ کی بک مارک کردہ راویان",
+                    addNote: "نوٹ شامل کریں",
+                    saveNote: "نوٹ محفوظ کریں",
+                    addToCategory: "زمرے میں شامل کریں",
+                    theme: "تھیم",
+                    lightMode: "لائٹ موڈ",
+                    darkMode: "ڈارک موڈ",
+                    language: "زبان",
+                    english: "English",
+                    urdu: "اردو",
+                    dataManagement: "ڈیٹا مینجمنٹ",
+                    exportData: "تمام ڈیٹا ایکسپورٹ کریں",
+                    importData: "ڈیٹا امپورٹ کریں",
+                    resetOnboarding: "آن بورڈنگ ریسیٹ کریں",
+                    resetDisclaimer: "ڈسکلیمر ریسیٹ کریں",
+                    clearData: "تمام ڈیٹا صاف کریں",
+                    birthDate: "تاریخ پیدائش",
+                    deathDate: "تاریخ وفات",
+                    birthPlace: "مقام پیدائش",
+                    deathPlace: "مقام وفات",
+                    teachers: "اساتذہ",
+                    students: "شاگرد",
+                    family: "خاندان",
+                    addBookmark: "بک مارک شامل کریں",
+                    removeBookmark: "بک مارک ہٹائیں",
+                    newCategory: "نئے زمرے کا نام",
+                    add: "شامل کریں",
+                    welcome: "اسناد راویان ایکسپلورر میں خوش آمدید",
+                    next: "اگلا",
+                    previous: "پچھلا",
+                    getStarted: "شروع کریں",
+                    disclaimer: "دستبرداری"
+                }
+            },
+    
+            init: async function() {
+                this.showLoading();
+                await this.initDatabase();
+                await this.loadSettings();
+                this.applySettings();
+                await this.loadNarrators();
+                this.initEventListeners();
+                
+                if (!this.settings.onboardingCompleted) {
+                    this.showOnboarding();
+                } else if (this.settings.showDisclaimer) {
+                    this.showDisclaimer();
+                }
+                
+                this.hideLoading();
+            },
+            
+            initDatabase: function() {
+                return new Promise((resolve, reject) => {
+                    const req = indexedDB.open("IsnadNarratorsDB", 1);
+                    
+                    req.onerror = (event) => {
+                        console.error("Database error:", event.target.error);
+                        reject(event.target.error);
+                    };
+                    
+                    req.onupgradeneeded = (event) => {
+                        const db = event.target.result;
+                        
+                        if (!db.objectStoreNames.contains("narrators")) {
+                            const narratorsStore = db.createObjectStore("narrators", { keyPath: "scholar_indx" });
+                            narratorsStore.createIndex("name", "name", { unique: false });
+                            narratorsStore.createIndex("birth_date_gregorian", "birth_date_gregorian", { unique: false });
+                            narratorsStore.createIndex("death_date_gregorian", "death_date_gregorian", { unique: false });
+                        }
+                        
+                        if (!db.objectStoreNames.contains("settings")) {
+                            db.createObjectStore("settings", { keyPath: "id" });
+                        }
+                        
+                        if (!db.objectStoreNames.contains("bookmarks")) {
+                            db.createObjectStore("bookmarks", { keyPath: "id" });
+                        }
+                        
+                        if (!db.objectStoreNames.contains("notes")) {
+                            db.createObjectStore("notes", { keyPath: "narratorId" });
+                        }
+                        
+                        if (!db.objectStoreNames.contains("categories")) {
+                            db.createObjectStore("categories", { keyPath: "id" });
+                        }
+                    };
+                    
+                    req.onsuccess = (event) => {
+                        this.db = event.target.result;
+                        resolve();
+                    };
+                });
+            },
+            
+            loadSettings: async function() {
+                try {
+                    const settings = await this.getFromDB("settings", "app");
+                    if (settings) {
+                        this.settings = { ...this.settings, ...settings.data };
+                    } else {
+                        await this.saveSettings();
+                    }
+                    
+                    // Load bookmarks, notes, and categories
+                    this.bookmarks = await this.getAllFromDB("bookmarks") || [];
+                    
+                    const notes = await this.getAllFromDB("notes") || [];
+                    notes.forEach(note => {
+                        this.notes[note.narratorId] = note.text;
+                    });
+                    
+                    const categories = await this.getAllFromDB("categories") || [];
+                    categories.forEach(category => {
+                        this.categories[category.id] = category.narrators || [];
+                    });
+                } catch (error) {
+                    console.error("Error loading settings:", error);
+                }
+            },
+            
+            saveSettings: function() {
+                return this.saveToDB("settings", { id: "app", data: this.settings });
+            },
+            
+            applySettings: function() {
+                document.body.setAttribute("data-theme", this.settings.theme);
+                document.body.setAttribute("data-lang", this.settings.language);
+                this.updateTranslations();
+            },
+            
+            updateTranslations: function() {
+                const lang = this.settings.language;
+                const t = this.translations[lang];
+                
+                // Update UI elements with translations
+                document.getElementById("searchInput").placeholder = t.search;
+                document.querySelectorAll(".tab").textContent = t.narrators;
+                document.querySelectorAll(".tab").textContent = t.visualization;
+                document.querySelectorAll(".tab").textContent = t.bookmarks;
+                document.querySelectorAll(".tab").textContent = t.categories;
+                
+                // Update other translateable elements...
+            },
+            
+            loadNarrators: async function() {
+    try {
+        let narrators = await this.getAllFromDB("narrators");
+        if (!narrators || narrators.length === 0) {
+            // Try to fetch all_rawis.csv from server root or same directory as HTML
+            const csvUrl = "all_rawis.csv";
+            let csvText = "";
+            try {
+                const res = await fetch(csvUrl, {cache: "no-store"});
+                if (!res.ok) throw new Error("CSV not found");
+                csvText = await res.text();
+            } catch (e) {
+                alert("Cannot load all_rawis.csv. Please place the file in the same directory as this HTML.");
+                csvText = this.getEmbeddedCSV();
+            }
+            narrators = this.parseCSV(csvText);
+            for (const narrator of narrators) await this.saveToDB("narrators", narrator);
+        }
+        this.narrators = narrators;
+        this.displayedNarrators = [...narrators];
+        this.renderNarrators();
+    } catch (error) {
+        console.error("Error loading narrators:", error);
+    }
+},
+            
+parseCSV: function(csvString) {
+    const rows = [];
+    const lines = [];
+    let cur = '', inQuotes = false;
+    for (let i = 0; i < csvString.length; ++i) {
+        const c = csvString[i], nc = csvString[i+1];
+        if (c === '"') {
+            if (inQuotes && nc === '"') {cur += '"'; ++i;}
+            else inQuotes = !inQuotes;
+        } else if ((c === '\n' || c === '\r') && !inQuotes) {
+            lines.push(cur);
+            cur = '';
+            if (c === '\r' && nc === '\n') ++i;
+        } else {
+            cur += c;
+        }
+    }
+    if (cur) lines.push(cur);
+    // Parse header
+    function splitCSVRow(line) {
+        const arr = [];
+        let val = '', inQ = false;
+        for (let i = 0; i < line.length; ++i) {
+            const c = line[i], nc = line[i+1];
+            if (c === '"') {
+                if (inQ && nc === '"') { val += '"'; ++i;}
+                else inQ = !inQ;
+            } else if (c === ',' && !inQ) {
+                arr.push(val);
+                val = '';
+            } else {
+                val += c;
+            }
+        }
+        arr.push(val);
+        return arr;
+    }
+    const header = splitCSVRow(lines[0]);
+    for (let l = 1; l < lines.length; ++l) {
+        if (!lines[l].trim()) continue;
+        const rowArr = splitCSVRow(lines[l]);
+        const row = {};
+        header.forEach((h, i) => row[h] = typeof rowArr[i] !== "undefined" ? rowArr[i].trim() : '');
+        rows.push(row);
+    }
+    return rows;
+},
+
+            
+            getEmbeddedCSV: function() {
+                return ``;
+},
+
+            renderNarrators: function() {
+                const container = document.getElementById("narratorsList");
+                container.innerHTML = "";
+                
+                const startIndex = (this.currentPage - 1) * this.settings.itemsPerPage;
+                const endIndex = startIndex + this.settings.itemsPerPage;
+                const narratorsToDisplay = this.displayedNarrators.slice(startIndex, endIndex);
+                
+                narratorsToDisplay.forEach(narrator => {
+                    const card = document.createElement("div");
+                    card.className = "card narrator-card";
+                    card.dataset.id = narrator.scholar_indx;
+                    
+                    const isBookmarked = this.bookmarks.some(b => b.id == narrator.scholar_indx);
+                    
+                    card.innerHTML = `
+                        <div class="narrator-name">${narrator.name}</div>
+                        <div class="narrator-details">
+                            <div><strong>${this.getTranslation('grade')}:</strong> ${narrator.grade}</div>
+                            <div><strong>${this.getTranslation('birthDate')}:</strong> ${narrator.birth_date || 'N/A'}</div>
+                            <div><strong>${this.getTranslation('deathDate')}:</strong> ${narrator.death_date || 'N/A'}</div>
+                        </div>
+                        <div class="narrator-tags">
+                            ${this.renderTags(narrator.tags)}
+                        </div>
+                        <div class="controls">
+                            <span class="bookmark-icon ${isBookmarked ? 'active' : ''}" data-id="${narrator.scholar_indx}">
+                                <i class="bi bi-bookmark-fill"></i>
+                            </span>
+                        </div>
+                    `;
+                    
+                    container.appendChild(card);
+                });
+                
+                this.renderPagination();
+            },
+            
+            renderTags: function(tagsString) {
+                if (!tagsString || tagsString === 'NA') return '';
+                
+                const tags = tagsString.split(',').map(tag => {
+                    const match = tag.match(/$(.*?)$/);
+                    const tagText = match ? match : tag.trim();
+                    return `<span class="tag">${tagText}</span>`;
+                });
+                
+                return tags.join('');
+            },
+            
+            renderPagination: function() {
+                const totalPages = Math.ceil(this.displayedNarrators.length / this.settings.itemsPerPage);
+                const pagination = document.getElementById("pagination");
+                pagination.innerHTML = "";
+                
+                if (totalPages <= 1) return;
+                
+                // Previous button
+                if (this.currentPage > 1) {
+                    const prevBtn = document.createElement("button");
+                    prevBtn.innerHTML = "&laquo;";
+                    prevBtn.addEventListener("click", () => this.changePage(this.currentPage - 1));
+                    pagination.appendChild(prevBtn);
+                }
+                
+                // Page numbers
+                for (let i = 1; i <= totalPages; i++) {
+                    if (totalPages > 7) {
+                        // Show first page, last page, current page and neighbors
+                        if (
+                            i === 1 || 
+                            i === totalPages || 
+                            (i >= this.currentPage - 1 && i <= this.currentPage + 1)
+                        ) {
+                            const pageBtn = document.createElement("button");
+                            pageBtn.textContent = i;
+                            pageBtn.className = i === this.currentPage ? "active" : "";
+                            pageBtn.addEventListener("click", () => this.changePage(i));
+                            pagination.appendChild(pageBtn);
+                        } else if (
+                            (i === 2 && this.currentPage > 3) || 
+                            (i === totalPages - 1 && this.currentPage < totalPages - 2)
+                        ) {
+                            const ellipsis = document.createElement("span");
+                            ellipsis.textContent = "...";
+                            ellipsis.style.margin = "0 0.5rem";
+                            pagination.appendChild(ellipsis);
+                        }
+                    } else {
+                        // Show all pages if there are 7 or fewer
+                        const pageBtn = document.createElement("button");
+                        pageBtn.textContent = i;
+                        pageBtn.className = i === this.currentPage ? "active" : "";
+                        pageBtn.addEventListener("click", () => this.changePage(i));
+                        pagination.appendChild(pageBtn);
+                    }
+                }
+                
+                // Next button
+                if (this.currentPage < totalPages) {
+                    const nextBtn = document.createElement("button");
+                    nextBtn.innerHTML = "&raquo;";
+                    nextBtn.addEventListener("click", () => this.changePage(this.currentPage + 1));
+                    pagination.appendChild(nextBtn);
+                }
+            },
+            
+            changePage: function(page) {
+                this.currentPage = page;
+                this.renderNarrators();
+                window.scrollTo(0, 0);
+            },
+            
+            renderNarratorDetails: function(narrator) {
+                const detailsContainer = document.getElementById("narratorDetails");
+                
+                const isBookmarked = this.bookmarks.some(b => b.id == narrator.scholar_indx);
+                const note = this.notes[narrator.scholar_indx] || '';
+                
+                let categoriesHtml = '';
+                for (const categoryId in this.categories) {
+                    if (this.categories[categoryId].includes(parseInt(narrator.scholar_indx))) {
+                        categoriesHtml += `<span class="category-badge">${categoryId}</span>`;
+                    }
+                }
+                
+                let teachersHtml = '';
+                if (narrator.teachers && narrator.teachers !== 'NA') {
+                    teachersHtml = `
+                        <h3>${this.getTranslation('teachers')}</h3>
+                        <div>${narrator.teachers}</div>
+                    `;
+                }
+                
+                let studentsHtml = '';
+                if (narrator.students && narrator.students !== 'NA') {
+                    studentsHtml = `
+                        <h3>${this.getTranslation('students')}</h3>
+                        <div>${narrator.students}</div>
+                    `;
+                }
+                
+                let familyHtml = '';
+                let familyDetails = [];
+                
+                if (narrator.parents && narrator.parents !== 'NA') {
+                    familyDetails.push(`<div><strong>Parents:</strong> ${narrator.parents}</div>`);
+                }
+                
+                if (narrator.siblings && narrator.siblings !== 'NA') {
+                    familyDetails.push(`<div><strong>Siblings:</strong> ${narrator.siblings}</div>`);
+                }
+                
+                if (narrator.spouse && narrator.spouse !== 'NA') {
+                    familyDetails.push(`<div><strong>Spouse:</strong> ${narrator.spouse}</div>`);
+                }
+                
+                if (narrator.children && narrator.children !== 'NA') {
+                    familyDetails.push(`<div><strong>Children:</strong> ${narrator.children}</div>`);
+                }
+                
+                if (familyDetails.length > 0) {
+                    familyHtml = `
+                        <h3>${this.getTranslation('family')}</h3>
+                        ${familyDetails.join('')}
+                    `;
+                }
+                
+                detailsContainer.innerHTML = `
+                    <div class="narrator-header">
+                        <h2 class="narrator-name">${narrator.name}</h2>
+                        <div class="controls">
+                            <span class="bookmark-icon ${isBookmarked ? 'active' : ''}" data-id="${narrator.scholar_indx}">
+                                <i class="bi bi-bookmark-fill"></i>
+                                ${isBookmarked ? this.getTranslation('removeBookmark') : this.getTranslation('addBookmark')}
+                            </span>
+                        </div>
+                    </div>
+                    
+                    <div class="narrator-meta">
+                        <div><strong>${this.getTranslation('grade')}:</strong> ${narrator.grade}</div>
+                        <div><strong>${this.getTranslation('birthDate')}:</strong> ${narrator.birth_date || 'N/A'}</div>
+                        <div><strong>${this.getTranslation('birthPlace')}:</strong> ${narrator.birth_place || 'N/A'}</div>
+                        <div><strong>${this.getTranslation('deathDate')}:</strong> ${narrator.death_date || 'N/A'}</div>
+                        <div><strong>${this.getTranslation('deathPlace')}:</strong> ${narrator.death_place || 'N/A'}</div>
+                    </div>
+                    
+                    <div class="narrator-tags">
+                        ${this.renderTags(narrator.tags)}
+                    </div>
+                    
+                    <div class="narrator-categories">
+                        ${categoriesHtml}
+                    </div>
+                    
+                    ${familyHtml}
+                    
+                    ${teachersHtml}
+                    
+                    ${studentsHtml}
+                    
+                    <div class="note-area">
+                        <h3>${this.getTranslation('addNote')}</h3>
+                        <textarea id="narratorNote" rows="4">${note}</textarea>
+                        <button id="saveNote" class="btn" data-id="${narrator.scholar_indx}">${this.getTranslation('saveNote')}</button>
+                    </div>
+                    
+                    <div class="category-area">
+                        <h3>${this.getTranslation('addToCategory')}</h3>
+                        <select id="categorySelect">
+                            ${Object.keys(this.categories).map(cat => 
+                                `<option value="${cat}">${cat}</option>`
+                            ).join('')}
+                        </select>
+                        <button id="addToCategory" class="btn" data-id="${narrator.scholar_indx}">${this.getTranslation('add')}</button>
+                    </div>
+                `;
+                
+                // Event listeners for the details view
+                document.querySelector('#narratorDetails .bookmark-icon').addEventListener('click', (e) => {
+                    const id = parseInt(e.currentTarget.dataset.id);
+                    this.toggleBookmark(id);
+                    this.renderNarratorDetails(narrator);
+                });
+                
+                document.getElementById('saveNote').addEventListener('click', (e) => {
+                    const id = parseInt(e.currentTarget.dataset.id);
+                    const note = document.getElementById('narratorNote').value;
+                    this.saveNote(id, note);
+                });
+                
+                document.getElementById('addToCategory').addEventListener('click', (e) => {
+                    const id = parseInt(e.currentTarget.dataset.id);
+                    const category = document.getElementById('categorySelect').value;
+                    this.addNarratorToCategory(id, category);
+                    this.renderNarratorDetails(narrator);
+                });
+            },
+            
+            renderBookmarks: function() {
+                const container = document.getElementById("bookmarksList");
+                container.innerHTML = "";
+                
+                if (this.bookmarks.length === 0) {
+                    container.innerHTML = `<p>You haven't bookmarked any narrators yet.</p>`;
+                    return;
+                }
+                
+                this.bookmarks.forEach(bookmark => {
+                    const narrator = this.narrators.find(n => n.scholar_indx == bookmark.id);
+                    if (!narrator) return;
+                    
+                    const card = document.createElement("div");
+                    card.className = "card narrator-card";
+                    card.dataset.id = narrator.scholar_indx;
+                    
+                    card.innerHTML = `
+                        <div class="narrator-name">${narrator.name}</div>
+                        <div class="narrator-details">
+                            <div><strong>${this.getTranslation('grade')}:</strong> ${narrator.grade}</div>
+                            <div><strong>${this.getTranslation('birthDate')}:</strong> ${narrator.birth_date || 'N/A'}</div>
+                            <div><strong>${this.getTranslation('deathDate')}:</strong> ${narrator.death_date || 'N/A'}</div>
+                        </div>
+                        <div class="narrator-tags">
+                            ${this.renderTags(narrator.tags)}
+                        </div>
+                        <div class="controls">
+                            <span class="bookmark-icon active" data-id="${narrator.scholar_indx}">
+                                <i class="bi bi-bookmark-fill"></i>
+                            </span>
+                        </div>
+                    `;
+                    
+                    container.appendChild(card);
+                });
+            },
+            
+            renderCategories: function() {
+                const menuContainer = document.getElementById("categoriesMenu");
+                menuContainer.innerHTML = "";
+                
+                if (Object.keys(this.categories).length === 0) {
+                    menuContainer.innerHTML = `<p>You haven't created any categories yet.</p>`;
+                    return;
+                }
+                
+                const menuList = document.createElement("ul");
+                menuList.className = "categories-list";
+                
+                Object.keys(this.categories).forEach(category => {
+                    const item = document.createElement("li");
+                    item.textContent = `${category} (${this.categories[category].length})`;
+                    item.dataset.category = category;
+                    item.className = "category-item";
+                    
+                    item.addEventListener("click", () => {
+                        document.querySelectorAll(".category-item").forEach(el => el.classList.remove("active"));
+                        item.classList.add("active");
+                        this.renderCategoryNarrators(category);
+                    });
+                    
+                    menuList.appendChild(item);
+                });
+                
+                menuContainer.appendChild(menuList);
+            },
+            
+            renderCategoryNarrators: function(category) {
+                const container = document.getElementById("categoryNarrators");
+                container.innerHTML = "";
+                
+                const narratorIds = this.categories[category] || [];
+                
+                if (narratorIds.length === 0) {
+                    container.innerHTML = `<p>No narrators in this category.</p>`;
+                    return;
+                }
+                
+                narratorIds.forEach(id => {
+                    const narrator = this.narrators.find(n => n.scholar_indx == id);
+                    if (!narrator) return;
+                    
+                    const card = document.createElement("div");
+                    card.className = "card narrator-card";
+                    card.dataset.id = narrator.scholar_indx;
+                    const isBookmarked = this.bookmarks.some(b => b.id == narrator.scholar_indx);
+
+                    card.innerHTML = `
+                        <div class="narrator-name">${narrator.name}</div>
+                        <div class="narrator-details">
+                            <div><strong>${this.getTranslation('grade')}:</strong> ${narrator.grade}</div>
+                            <div><strong>${this.getTranslation('birthDate')}:</strong> ${narrator.birth_date || 'N/A'}</div>
+                            <div><strong>${this.getTranslation('deathDate')}:</strong> ${narrator.death_date || 'N/A'}</div>
+                        </div>
+                        <div class="narrator-tags">
+                            ${this.renderTags(narrator.tags)}
+                        </div>
+                        <div class="controls">
+                            <span class="bookmark-icon ${isBookmarked ? 'active' : ''}" data-id="${narrator.scholar_indx}">
+                                <i class="bi bi-bookmark-fill"></i>
+                            </span>
+                            <button class="btn remove-from-category" data-id="${narrator.scholar_indx}" data-category="${category}">
+                                <i class="bi bi-x"></i>
+                            </button>
+                        </div>
+                    `;
+                    
+                    container.appendChild(card);
+                });
+                
+                // Add event listeners for category narrators
+                document.querySelectorAll(".remove-from-category").forEach(btn => {
+                    btn.addEventListener("click", (e) => {
+                        const id = parseInt(e.currentTarget.dataset.id);
+                        const category = e.currentTarget.dataset.category;
+                        this.removeNarratorFromCategory(id, category);
+                    });
+                });
+            },
+            
+            renderVisualization: function(narratorId, type, relationshipType) {
+                const container = document.getElementById("visualizationContainer");
+                container.innerHTML = "";
+                
+                const narrator = this.narrators.find(n => n.scholar_indx == narratorId);
+                if (!narrator) {
+                    container.innerHTML = "<p>Narrator not found.</p>";
+                    return;
+                }
+                
+                switch (type) {
+                    case "tree":
+                        this.renderTree(narrator, relationshipType, container);
+                        break;
+                    case "timeline":
+                        this.renderTimeline(narrator, container);
+                        break;
+                    case "network":
+                        this.renderNetwork(narrator, relationshipType, container);
+                        break;
+                }
+            },
+            
+            renderTree: function(narrator, relationshipType, container) {
+                container.style.height = "600px";
+                
+                const centerNode = document.createElement("div");
+                centerNode.className = "tree-node";
+                centerNode.textContent = narrator.name;
+                centerNode.style.left = "50%";
+                centerNode.style.top = "50%";
+                centerNode.style.transform = "translate(-50%, -50%)";
+                centerNode.dataset.id = narrator.scholar_indx;
+                container.appendChild(centerNode);
+                
+                let relatedIds = [];
+                let label = "";
+                
+                if (relationshipType === "teachers") {
+                    // Teachers above, students below
+                    relatedIds = narrator.teachers_inds ? narrator.teachers_inds.split(',').map(id => id.trim()) : [];
+                    label = "Teachers";
+                    this.renderRelatedNodes(narrator, relatedIds, "teachers", container, centerNode);
+                    
+                    relatedIds = narrator.students_inds ? narrator.students_inds.split(',').map(id => id.trim()) : [];
+                    label = "Students";
+                    this.renderRelatedNodes(narrator, relatedIds, "students", container, centerNode);
+                } else {
+                    // Family relations
+                    if (narrator.parents && narrator.parents !== 'NA') {
+                        this.renderFamilyRelation(narrator, "parents", container, centerNode);
+                    }
+                    
+                    if (narrator.siblings && narrator.siblings !== 'NA') {
+                        this.renderFamilyRelation(narrator, "siblings", container, centerNode);
+                    }
+                    
+                    if (narrator.spouse && narrator.spouse !== 'NA') {
+                        this.renderFamilyRelation(narrator, "spouse", container, centerNode);
+                    }
+                    
+                    if (narrator.children && narrator.children !== 'NA') {
+                        this.renderFamilyRelation(narrator, "children", container, centerNode);
+                    }
+                }
+                
+                // Make nodes draggable
+                const nodes = container.querySelectorAll(".tree-node");
+                nodes.forEach(node => {
+                    this.makeNodeDraggable(node, container);
+                    
+                    // Add click event to show details
+                    node.addEventListener("click", (e) => {
+                        const id = e.currentTarget.dataset.id;
+                        if (id) {
+                            const narrator = this.narrators.find(n => n.scholar_indx == id);
+                            if (narrator) {
+                                this.showNarratorModal(narrator);
+                            }
+                        }
+                    });
+                });
+            },
+            
+            renderRelatedNodes: function(narrator, relatedIds, type, container, centerNode) {
+                if (!relatedIds || relatedIds.length === 0) return;
+                
+                const centerRect = centerNode.getBoundingClientRect();
+                const containerRect = container.getBoundingClientRect();
+                
+                const centerX = centerRect.left - containerRect.left + centerRect.width / 2;
+                const centerY = centerRect.top - containerRect.top + centerRect.height / 2;
+                
+                const radius = 200; // Distance from center
+                angleStep = Math.PI * 2 / relatedIds.length;
+                
+                // Determine angle offset based on type
+                let startAngle = 0;
+                if (type === "teachers") {
+                    startAngle = -Math.PI / 2; // Start from top
+                } else if (type === "students") {
+                    startAngle = Math.PI / 2; // Start from bottom
+                }
+                
+                relatedIds.forEach((id, i) => {
+                    const relatedNarrator = this.narrators.find(n => n.scholar_indx == id);
+                    if (!relatedNarrator) return;
+                    
+                    // Calculate position in a circular arrangement
+                    angle = startAngle + angleStep * i;
+                    const x = centerX + radius * Math.cos(angle);
+                    const y = centerY + radius * Math.sin(angle);
+                    
+                    const node = document.createElement("div");
+                    node.className = "tree-node";
+                    node.textContent = relatedNarrator.name;
+                    node.style.left = `${x}px`;
+                    node.style.top = `${y}px`;
+                    node.dataset.id = relatedNarrator.scholar_indx;
+                    
+                    // Add color based on type
+                    if (type === "teachers") {
+                        node.style.borderColor = "var(--primary)";
+                    } else {
+                        node.style.borderColor = "var(--secondary)";
+                    }
+                    
+                    container.appendChild(node);
+                    
+                    // Draw connection line
+                    const link = document.createElement("div");
+                    link.className = "tree-link";
+                    
+                    // Position and rotate the line to connect nodes
+                    const dx = x - centerX;
+                    const dy = y - centerY;
+                    const length = Math.sqrt(dx * dx + dy * dy);
+                    angle = Math.atan2(dy, dx) * 180 / Math.PI;
+                    
+                    link.style.width = `${length}px`;
+                    link.style.left = `${centerX}px`;
+                    link.style.top = `${centerY}px`;
+                    link.style.transform = `rotate(${angle}deg)`;
+                    
+                    // Add the line before the nodes to ensure proper z-index
+                    container.insertBefore(link, container.firstChild);
+                });
+            },
+            
+            renderFamilyRelation: function(narrator, relationType, container, centerNode) {
+                let relationText = narrator[relationType];
+                if (!relationText || relationText === 'NA') return;
+                
+                const centerRect = centerNode.getBoundingClientRect();
+                const containerRect = container.getBoundingClientRect();
+                
+                const centerX = centerRect.left - containerRect.left + centerRect.width / 2;
+                const centerY = centerRect.top - containerRect.top + centerRect.height / 2;
+                
+                // Position based on relation type
+                let x = centerX;
+                let y = centerY;
+                let color = "var(--primary)";
+                
+                switch (relationType) {
+                    case "parents":
+                        y = centerY - 150;
+                        color = "var(--primary)";
+                        break;
+                    case "siblings":
+                        x = centerX - 200;
+                        color = "var(--secondary)";
+                        break;
+                    case "spouse":
+                        x = centerX + 200;
+                        color = "var(--accent)";
+                        break;
+                    case "children":
+                        y = centerY + 150;
+                        color = "var(--success)";
+                        break;
+                }
+                
+                const node = document.createElement("div");
+                node.className = "tree-node";
+                node.textContent = `${relationType.charAt(0).toUpperCase() + relationType.slice(1)}: ${relationText.substring(0, 50)}${relationText.length > 50 ? '...' : ''}`;
+                node.style.left = `${x}px`;
+                node.style.top = `${y}px`;
+                node.style.borderColor = color;
+                
+                container.appendChild(node);
+                
+                // Draw connection line
+                const link = document.createElement("div");
+                link.className = "tree-link";
+                link.style.backgroundColor = color;
+                
+                // Position and rotate the line to connect nodes
+                const dx = x - centerX;
+                const dy = y - centerY;
+                const length = Math.sqrt(dx * dx + dy * dy);
+                angle = Math.atan2(dy, dx) * 180 / Math.PI;
+                
+                link.style.width = `${length}px`;
+                link.style.left = `${centerX}px`;
+                link.style.top = `${centerY}px`;
+                link.style.transform = `rotate(${angle}deg)`;
+                
+                // Add the line before the nodes to ensure proper z-index
+                container.insertBefore(link, container.firstChild);
+            },
+            
+            makeNodeDraggable: function(node, container) {
+                let pos1 = 0, pos2 = 0, pos3 = 0, pos4 = 0;
+                
+                node.onmousedown = dragMouseDown;
+                
+                function dragMouseDown(e) {
+                    e.preventDefault();
+                    // Get the mouse cursor position at startup
+                    pos3 = e.clientX;
+                    pos4 = e.clientY;
+                    document.onmouseup = closeDragElement;
+                    // Call a function whenever the cursor moves
+                    document.onmousemove = elementDrag;
+                }
+                
+                function elementDrag(e) {
+                    e.preventDefault();
+                    // Calculate the new cursor position
+                    pos1 = pos3 - e.clientX;
+                    pos2 = pos4 - e.clientY;
+                    pos3 = e.clientX;
+                    pos4 = e.clientY;
+                    // Set the element's new position
+                    node.style.top = (node.offsetTop - pos2) + "px";
+                    node.style.left = (node.offsetLeft - pos1) + "px";
+                }
+                
+                function closeDragElement() {
+                    // Stop moving when mouse button is released
+                    document.onmouseup = null;
+                    document.onmousemove = null;
+                }
+            },
+            
+            renderTimeline: function(narrator, container) {
+                container.style.height = "300px";
+                container.innerHTML = `<h3>Timeline for ${narrator.name}</h3>`;
+                
+                const timeline = document.createElement("div");
+                timeline.className = "timeline-container";
+                timeline.style.position = "relative";
+                timeline.style.height = "200px";
+                timeline.style.margin = "20px 0";
+                
+                // Draw the horizontal line
+                const line = document.createElement("div");
+                line.style.position = "absolute";
+                line.style.left = "5%";
+                line.style.right = "5%";
+                line.style.top = "50%";
+                line.style.height = "2px";
+                line.style.backgroundColor = "var(--border)";
+                timeline.appendChild(line);
+                
+                // Add birth event
+                if (narrator.birth_date_gregorian) {
+                    this.addTimelineEvent(timeline, narrator.birth_date_gregorian, "Birth", narrator.birth_date, "var(--primary)", 20);
+                }
+                
+                // Add death event
+                if (narrator.death_date_gregorian) {
+                    this.addTimelineEvent(timeline, narrator.death_date_gregorian, "Death", narrator.death_date, "var(--error)", 80);
+                }
+                
+                container.appendChild(timeline);
+            },
+            
+            addTimelineEvent: function(container, year, title, detail, color, position) {
+                const event = document.createElement("div");
+                event.className = "timeline-event";
+                event.style.position = "absolute";
+                event.style.bottom = "50%";
+                event.style.left = `${position}%`;
+                event.style.transform = "translate(-50%, 0)";
+                event.style.textAlign = "center";
+                
+                const dot = document.createElement("div");
+                dot.style.width = "12px";
+                dot.style.height = "12px";
+                dot.style.borderRadius = "50%";
+                dot.style.backgroundColor = color;
+                dot.style.margin = "0 auto 5px";
+                
+                const yearEl = document.createElement("div");
+                yearEl.textContent = year;
+                yearEl.style.fontWeight = "bold";
+                
+                const titleEl = document.createElement("div");
+                titleEl.textContent = title;
+                
+                const detailEl = document.createElement("div");
+                detailEl.textContent = detail;
+                detailEl.style.fontSize = "0.8rem";
+                
+                event.appendChild(dot);
+                event.appendChild(yearEl);
+                event.appendChild(titleEl);
+                event.appendChild(detailEl);
+                
+                container.appendChild(event);
+            },
+            
+            renderNetwork: function(narrator, relationshipType, container) {
+                // Simple force-directed layout
+                container.style.height = "600px";
+                
+                const nodes = [];
+                const links = [];
+                
+                // Add central node
+                nodes.push({
+                    id: narrator.scholar_indx,
+                    name: narrator.name,
+                    x: container.offsetWidth / 2,
+                    y: container.offsetHeight / 2,
+                    type: "central"
+                });
+                
+                if (relationshipType === "teachers") {
+                    // Add teachers
+                    if (narrator.teachers_inds) {
+                        const teacherIds = narrator.teachers_inds.split(',').map(id => id.trim());
+                        teacherIds.forEach(id => {
+                            const teacher = this.narrators.find(n => n.scholar_indx == id);
+                            if (teacher) {
+                                nodes.push({
+                                    id: teacher.scholar_indx,
+                                    name: teacher.name,
+                                    x: Math.random() * container.offsetWidth,
+                                    y: Math.random() * container.offsetHeight,
+                                    type: "teacher"
+                                });
+                                
+                                links.push({
+                                    source: teacher.scholar_indx,
+                                    target: narrator.scholar_indx,
+                                    type: "teacher"
+                                });
+                            }
+                        });
+                    }
+                    
+                    // Add students
+                    if (narrator.students_inds) {
+                        const studentIds = narrator.students_inds.split(',').map(id => id.trim());
+                        studentIds.forEach(id => {
+                            const student = this.narrators.find(n => n.scholar_indx == id);
+                            if (student) {
+                                nodes.push({
+                                    id: student.scholar_indx,
+                                    name: student.name,
+                                    x: Math.random() * container.offsetWidth,
+                                    y: Math.random() * container.offsetHeight,
+                                    type: "student"
+                                });
+                                
+                                links.push({
+                                    source: narrator.scholar_indx,
+                                    target: student.scholar_indx,
+                                    type: "student"
+                                });
+                            }
+                        });
+                    }
+                } else {
+                    // Family relations - simplified representation
+                    if (narrator.parents && narrator.parents !== 'NA') {
+                        const parentNode = {
+                            id: 'parents-' + narrator.scholar_indx,
+                            name: 'Parents',
+                            x: Math.random() * container.offsetWidth,
+                            y: Math.random() * container.offsetHeight,
+                            type: "family"
+                        };
+                        nodes.push(parentNode);
+                        links.push({
+                            source: parentNode.id,
+                            target: narrator.scholar_indx,
+                            type: "family"
+                        });
+                    }
+                    
+                    if (narrator.siblings && narrator.siblings !== 'NA') {
+                        const siblingNode = {
+                            id: 'siblings-' + narrator.scholar_indx,
+                            name: 'Siblings',
+                            x: Math.random() * container.offsetWidth,
+                            y: Math.random() * container.offsetHeight,
+                            type: "family"
+                        };
+                        nodes.push(siblingNode);
+                        links.push({
+                            source: siblingNode.id,
+                            target: narrator.scholar_indx,
+                            type: "family"
+                        });
+                    }
+                    
+                    if (narrator.spouse && narrator.spouse !== 'NA') {
+                        const spouseNode = {
+                            id: 'spouse-' + narrator.scholar_indx,
+                            name: 'Spouse',
+                            x: Math.random() * container.offsetWidth,
+                            y: Math.random() * container.offsetHeight,
+                            type: "family"
+                        };
+                        nodes.push(spouseNode);
+                        links.push({
+                            source: narrator.scholar_indx,
+                            target: spouseNode.id,
+                            type: "family"
+                        });
+                    }
+                    
+                    if (narrator.children && narrator.children !== 'NA') {
+                        const childrenNode = {
+                            id: 'children-' + narrator.scholar_indx,
+                            name: 'Children',
+                            x: Math.random() * container.offsetWidth,
+                            y: Math.random() * container.offsetHeight,
+                            type: "family"
+                        };
+                        nodes.push(childrenNode);
+                        links.push({
+                            source: narrator.scholar_indx,
+                            target: childrenNode.id,
+                            type: "family"
+                        });
+                    }
+                }
+                
+                // Create visual elements
+                nodes.forEach(node => {
+                    const nodeEl = document.createElement("div");
+                    nodeEl.className = "tree-node";
+                    nodeEl.textContent = node.name;
+                    nodeEl.style.left = `${node.x}px`;
+                    nodeEl.style.top = `${node.y}px`;
+                    
+                    // Style based on node type
+                    if (node.type === "central") {
+                        nodeEl.style.backgroundColor = "var(--primary)";
+                        nodeEl.style.color = "white";
+                        nodeEl.style.fontWeight = "bold";
+                    } else if (node.type === "teacher") {
+                        nodeEl.style.borderColor = "var(--primary)";
+                    } else if (node.type === "student") {
+                        nodeEl.style.borderColor = "var(--secondary)";
+                    } else if (node.type === "family") {
+                        nodeEl.style.borderColor = "var(--accent)";
+                    }
+                    
+                    if (typeof node.id === 'number') {
+                        nodeEl.dataset.id = node.id;
+                    }
+                    
+                    node.element = nodeEl;
+                    container.appendChild(nodeEl);
+                });
+                
+                links.forEach(link => {
+                    const sourceNode = nodes.find(n => n.id == link.source);
+                    const targetNode = nodes.find(n => n.id == link.target);
+                    
+                    if (!sourceNode || !targetNode) return;
+                    
+                    const sourceRect = sourceNode.element.getBoundingClientRect();
+                    const targetRect = targetNode.element.getBoundingClientRect();
+                    const containerRect = container.getBoundingClientRect();
+                    
+                    const sourceX = sourceRect.left - containerRect.left + sourceRect.width / 2;
+                    const sourceY = sourceRect.top - containerRect.top + sourceRect.height / 2;
+                    const targetX = targetRect.left - containerRect.left + targetRect.width / 2;
+                    const targetY = targetRect.top - containerRect.top + targetRect.height / 2;
+                    
+                    const linkEl = document.createElement("div");
+                    linkEl.className = "tree-link";
+                    
+                    // Style based on link type
+                    if (link.type === "teacher") {
+                        linkEl.style.backgroundColor = "var(--primary)";
+                    } else if (link.type === "student") {
+                        linkEl.style.backgroundColor = "var(--secondary)";
+                    } else if (link.type === "family") {
+                        linkEl.style.backgroundColor = "var(--accent)";
+                    }
+                    
+                    // Position and rotate the line
+                    const dx = targetX - sourceX;
+                    const dy = targetY - sourceY;
+                    const length = Math.sqrt(dx * dx + dy * dy);
+                    angle = Math.atan2(dy, dx) * 180 / Math.PI;
+                    
+                    linkEl.style.width = `${length}px`;
+                    linkEl.style.left = `${sourceX}px`;
+                    linkEl.style.top = `${sourceY}px`;
+                    linkEl.style.transform = `rotate(${angle}deg)`;
+                    
+                    container.insertBefore(linkEl, container.firstChild);
+                });
+                
+                // Make nodes draggable
+                nodes.forEach(node => {
+                    if (node.element) {
+                        this.makeNodeDraggable(node.element, container);
+                        
+                        // Add click event to show details for actual narrators
+                        if (typeof node.id === 'number') {
+                            node.element.addEventListener("click", (e) => {
+                                const id = e.currentTarget.dataset.id;
+                                if (id) {
+                                    const narrator = this.narrators.find(n => n.scholar_indx == id);
+                                    if (narrator) {
+                                        this.showNarratorModal(narrator);
+                                    }
+                                }
+                            });
+                        }
+                    }
+                });
+            },
+            
+            toggleBookmark: function(narratorId) {
+                const index = this.bookmarks.findIndex(b => b.id == narratorId);
+                
+                if (index === -1) {
+                    // Add bookmark
+                    const bookmark = { id: narratorId, date: new Date() };
+                    this.bookmarks.push(bookmark);
+                    this.saveToDB("bookmarks", bookmark);
+                } else {
+                    // Remove bookmark
+                    const bookmarkToRemove = this.bookmarks[index];
+                    this.bookmarks.splice(index, 1);
+                    this.deleteFromDB("bookmarks", bookmarkToRemove.id);
+                }
+                
+                // Update UI
+                this.renderNarrators();
+                this.renderBookmarks();
+            },
+            
+            saveNote: function(narratorId, text) {
+                this.notes[narratorId] = text;
+                
+                const note = { narratorId, text };
+                this.saveToDB("notes", note);
+                
+                alert("Note saved successfully!");
+            },
+            
+            addNarratorToCategory: function(narratorId, category) {
+                if (!this.categories[category]) {
+                    this.categories[category] = [];
+                }
+                
+                if (!this.categories[category].includes(narratorId)) {
+                    this.categories[category].push(narratorId);
+                    
+                    this.saveToDB("categories", {
+                        id: category,
+                        narrators: this.categories[category]
+                    });
+                    
+                    this.renderCategories();
+                    alert(`Added to ${category} category!`);
+                } else {
+                    alert("Already in this category!");
+                }
+            },
+            
+            removeNarratorFromCategory: function(narratorId, category) {
+                if (this.categories[category]) {
+                    const index = this.categories[category].indexOf(narratorId);
+                    
+                    if (index !== -1) {
+                        this.categories[category].splice(index, 1);
+                        
+                        this.saveToDB("categories", {
+                            id: category,
+                            narrators: this.categories[category]
+                        });
+                        
+                        this.renderCategories();
+                        this.renderCategoryNarrators(category);
+                    }
+                }
+            },
+            
+            addCategory: function(name) {
+                if (!name.trim()) {
+                    alert("Please enter a category name");
+                    return;
+                }
+                
+                if (this.categories[name]) {
+                    alert("Category already exists");
+                    return;
+                }
+                
+                this.categories[name] = [];
+                this.saveToDB("categories", { id: name, narrators: [] });
+                
+                this.renderCategories();
+                document.getElementById("newCategory").value = "";
+            },
+            
+            exportAllData: function() {
+                const data = {
+                    narrators: this.narrators,
+                    bookmarks: this.bookmarks,
+                    notes: this.notes,
+                    categories: this.categories,
+                    settings: this.settings
+                };
+                
+                const jsonString = JSON.stringify(data);
+                const blob = new Blob([jsonString], { type: "application/json" });
+                const url = URL.createObjectURL(blob);
+                
+                const a = document.createElement("a");
+                a.href = url;
+                a.download = "isnad_narrators_data.json";
+                document.body.appendChild(a);
+                a.click();
+                document.body.removeChild(a);
+                URL.revokeObjectURL(url);
+            },
+            
+            importData: function(jsonData) {
+                try {
+                    const data = JSON.parse(jsonData);
+                    
+                    // Clear existing data
+                    this.clearDB();
+                    
+                    // Import narrators
+                    if (data.narrators && Array.isArray(data.narrators)) {
+                        this.narrators = data.narrators;
+                        for (const narrator of this.narrators) {
+                            this.saveToDB("narrators", narrator);
+                        }
+                    }
+                    
+                    // Import bookmarks
+                    if (data.bookmarks && Array.isArray(data.bookmarks)) {
+                        this.bookmarks = data.bookmarks;
+                        for (const bookmark of this.bookmarks) {
+                            this.saveToDB("bookmarks", bookmark);
+                        }
+                    }
+                    
+                    // Import notes
+                    if (data.notes) {
+                        this.notes = data.notes;
+                        for (const id in this.notes) {
+                            this.saveToDB("notes", { narratorId: parseInt(id), text: this.notes[id] });
+                        }
+                    }
+                    
+                    // Import categories
+                    if (data.categories) {
+                        this.categories = data.categories;
+                        for (const id in this.categories) {
+                            this.saveToDB("categories", { id, narrators: this.categories[id] });
+                        }
+                    }
+                    
+                    // Import settings
+                    if (data.settings) {
+                        this.settings = { ...this.settings, ...data.settings };
+                        this.saveSettings();
+                    }
+                    
+                    // Update UI
+                    this.applySettings();
+                    this.renderNarrators();
+                    this.renderBookmarks();
+                    this.renderCategories();
+                    
+                    alert("Data imported successfully!");
+                } catch (error) {
+                    console.error("Error importing data:", error);
+                    alert("Error importing data. Please check the file format.");
+                }
+            },
+            
+            clearDB: function() {
+                return new Promise((resolve, reject) => {
+                    const tx = this.db.transaction(["narrators", "settings", "bookmarks", "notes", "categories"], "readwrite");
+                    
+                    tx.objectStore("narrators").clear();
+                    tx.objectStore("settings").clear();
+                    tx.objectStore("bookmarks").clear();
+                    tx.objectStore("notes").clear();
+                    tx.objectStore("categories").clear();
+                    
+                    tx.oncomplete = () => resolve();
+                    tx.onerror = (event) => reject(event.target.error);
+                });
+            },
+            
+            clearAllData: function() {
+                if (confirm("Are you sure you want to clear all data? This action cannot be undone.")) {
+                    this.clearDB().then(() => {
+                        this.bookmarks = [];
+                        this.notes = {};
+                        this.categories = {};
+                        
+                        // Keep settings but reset onboarding and disclaimer
+                        this.settings.onboardingCompleted = false;
+                        this.settings.showDisclaimer = true;
+                        this.saveSettings();
+                        
+                        // Reload page
+                        location.reload();
+                    });
+                }
+            },
+            
+            showNarratorModal: function(narrator) {
+                this.renderNarratorDetails(narrator);
+                document.getElementById("narratorModal").classList.add("active");
+            },
+            
+            hideNarratorModal: function() {
+                document.getElementById("narratorModal").classList.remove("active");
+            },
+            
+            showSettingsModal: function() {
+                // Update theme toggle
+                document.getElementById("themeToggle").checked = this.settings.theme === "dark";
+                document.getElementById("themeLabel").textContent = 
+                    this.settings.theme === "dark" ? this.getTranslation("darkMode") : this.getTranslation("lightMode");
+                
+                // Update language toggle
+                document.getElementById("langToggle").checked = this.settings.language === "ur";
+                document.getElementById("langLabel").textContent = 
+                    this.settings.language === "ur" ? this.getTranslation("urdu") : this.getTranslation("english");
+                
+                // Update categories list
+                const categoryItems = document.getElementById("categoryItems");
+                categoryItems.innerHTML = "";
+                
+                Object.keys(this.categories).forEach(category => {
+                    const item = document.createElement("div");
+                    item.className = "category-item";
+                    item.innerHTML = `
+                        <span>${category} (${this.categories[category].length})</span>
+                        <button class="btn delete-category" data-category="${category}">
+                            <i class="bi bi-trash"></i>
+                        </button>
+                    `;
+                    categoryItems.appendChild(item);
+                });
+                
+                document.getElementById("settingsModal").classList.add("active");
+            },
+            
+            hideSettingsModal: function() {
+                document.getElementById("settingsModal").classList.remove("active");
+            },
+            
+            showOnboarding: function() {
+                document.getElementById("onboarding").classList.add("active");
+            },
+            
+            hideOnboarding: function() {
+                document.getElementById("onboarding").classList.remove("active");
+                this.settings.onboardingCompleted = true;
+                this.saveSettings();
+                
+                if (this.settings.showDisclaimer) {
+                    this.showDisclaimer();
+                }
+            },
+            
+            showDisclaimer: function() {
+                document.getElementById("disclaimerModal").classList.add("active");
+            },
+            
+            hideDisclaimer: function() {
+                document.getElementById("disclaimerModal").classList.remove("active");
+                const dontShowAgain = document.getElementById("dontShowAgain").checked;
+                
+                if (dontShowAgain) {
+                    this.settings.showDisclaimer = false;
+                    this.saveSettings();
+                }
+            },
+            
+            showLoading: function() {
+                document.getElementById("loading").classList.remove("hidden");
+            },
+            
+            hideLoading: function() {
+                document.getElementById("loading").classList.add("hidden");
+            },
+            
+            searchNarrators: function() {
+                const query = document.getElementById("searchInput").value.trim().toLowerCase();
+                const field = document.getElementById("filterField").value;
+                
+                if (!query) {
+                    this.displayedNarrators = [...this.narrators];
+                    this.currentPage = 1;
+                    this.renderNarrators();
+                    return;
+                }
+                
+                this.displayedNarrators = this.narrators.filter(narrator => {
+                    if (field === "all") {
+                        return Object.values(narrator).some(value => {
+                            return value !== null && String(value).toLowerCase().includes(query);
+                        });
+                    } else {
+                        const value = narrator[field];
+                        return value !== null && String(value).toLowerCase().includes(query);
+                    }
+                });
+                
+                this.currentPage = 1;
+                this.renderNarrators();
+            },
+            
+            sortNarrators: function() {
+                const field = document.getElementById("sortField").value;
+                const direction = document.getElementById("sortDirection").value;
+                
+                this.displayedNarrators.sort((a, b) => {
+                    let valA = a[field];
+                    let valB = b[field];
+                    
+                    // Handle null or undefined values
+                    if (valA === null || valA === undefined) valA = '';
+                    if (valB === null || valB === undefined) valB = '';
+                    
+                    // Numeric comparison for dates
+                    if (field === 'birth_date_gregorian' || field === 'death_date_gregorian') {
+                        valA = parseInt(valA) || 0;
+                        valB = parseInt(valB) || 0;
+                        return direction === 'asc' ? valA - valB : valB - valA;
+                    }
+                    
+                    // String comparison for text
+                    const comparison = String(valA).localeCompare(String(valB));
+                    return direction === 'asc' ? comparison : -comparison;
+                });
+                
+                this.currentPage = 1;
+                this.renderNarrators();
+            },
+            
+            visualizeNarrator: function() {
+                const query = document.getElementById("visualizationSearch").value.trim();
+                const type = document.getElementById("visualizationType").value;
+                const relationshipType = document.getElementById("relationshipType").value;
+                
+                if (!query) {
+                    alert("Please enter a narrator name or ID to visualize.");
+                    return;
+                }
+                
+                // Search for the narrator
+                let narrator = null;
+                
+                // Try to find by ID first
+                if (!isNaN(query)) {
+                    narrator = this.narrators.find(n => n.scholar_indx == query);
+                }
+                
+                // If not found, search by name
+                if (!narrator) {
+                    narrator = this.narrators.find(n => 
+                        n.name.toLowerCase().includes(query.toLowerCase())
+                    );
+                }
+                
+                if (!narrator) {
+                    alert("Narrator not found. Please check the name or ID.");
+                    return;
+                }
+                
+                this.renderVisualization(narrator.scholar_indx, type, relationshipType);
+            },
+            
+            getTranslation: function(key) {
+                const lang = this.settings.language;
+                return this.translations[lang][key] || this.translations.en[key] || key;
+            },
+            
+            initEventListeners: function() {
+                // Tab switching
+                document.querySelectorAll(".tab").forEach(tab => {
+                    tab.addEventListener("click", (e) => {
+                        document.querySelectorAll(".tab").forEach(t => t.classList.remove("active"));
+                        e.currentTarget.classList.add("active");
+                        
+                        const tabId = e.currentTarget.dataset.tab;
+                        document.querySelectorAll(".tabs-content > div").forEach(content => {
+                            content.classList.remove("active");
+                        });
+                        document.getElementById(tabId + "Tab").classList.add("active");
+                    });
+                });
+                
+                // Narrator cards click
+                document.addEventListener("click", (e) => {
+                    const card = e.target.closest(".narrator-card");
+                    if (card && !e.target.closest(".bookmark-icon")) {
+                        const id = card.dataset.id;
+                        const narrator = this.narrators.find(n => n.scholar_indx == id);
+                        if (narrator) {
+                            this.showNarratorModal(narrator);
+                        }
+                    }
+                });
+                
+                // Bookmark toggle
+                document.addEventListener("click", (e) => {
+                    const bookmark = e.target.closest(".bookmark-icon");
+                    if (bookmark) {
+                        const id = parseInt(bookmark.dataset.id);
+                        this.toggleBookmark(id);
+                    }
+                });
+                
+                // Search narrators
+                document.getElementById("searchBtn").addEventListener("click", () => {
+                    this.searchNarrators();
+                });
+                
+                document.getElementById("searchInput").addEventListener("keyup", (e) => {
+                    if (e.key === "Enter") {
+                        this.searchNarrators();
+                    }
+                });
+                
+                // Sort narrators
+                document.getElementById("sortField").addEventListener("change", () => {
+                    this.sortNarrators();
+                });
+                
+                document.getElementById("sortDirection").addEventListener("change", () => {
+                    this.sortNarrators();
+                });
+                
+                // Visualize
+                document.getElementById("visualizeBtn").addEventListener("click", () => {
+                    this.visualizeNarrator();
+                });
+                
+                // Settings button
+                document.getElementById("settingsBtn").addEventListener("click", () => {
+                    this.showSettingsModal();
+                });
+                
+                // Help button
+                document.getElementById("helpBtn").addEventListener("click", () => {
+                    this.showOnboarding();
+                });
+                
+                // Close narrator modal
+                document.getElementById("closeNarratorModal").addEventListener("click", () => {
+                    this.hideNarratorModal();
+                });
+                
+                // Close settings modal
+                document.getElementById("closeSettingsModal").addEventListener("click", () => {
+                    this.hideSettingsModal();
+                });
+                
+                // Theme toggle
+                document.getElementById("themeToggle").addEventListener("change", (e) => {
+                    this.settings.theme = e.target.checked ? "dark" : "light";
+                    document.getElementById("themeLabel").textContent = 
+                        e.target.checked ? this.getTranslation("darkMode") : this.getTranslation("lightMode");
+                    this.applySettings();
+                    this.saveSettings();
+                });
+                
+                // Language toggle
+                document.getElementById("langToggle").addEventListener("change", (e) => {
+                    this.settings.language = e.target.checked ? "ur" : "en";
+                    document.getElementById("langLabel").textContent = 
+                        e.target.checked ? this.getTranslation("urdu") : this.getTranslation("english");
+                    this.applySettings();
+                    this.saveSettings();
+                });
+                
+                // Add category
+                document.getElementById("addCategory").addEventListener("click", () => {
+                    const name = document.getElementById("newCategory").value.trim();
+                    this.addCategory(name);
+                });
+                
+                // Delete category
+                document.addEventListener("click", (e) => {
+                    if (e.target.closest(".delete-category")) {
+                        const category = e.target.closest(".delete-category").dataset.category;
+                        if (confirm(`Are you sure you want to delete the category "${category}"?`)) {
+                            delete this.categories[category];
+                            this.deleteFromDB("categories", category);
+                            this.showSettingsModal();
+                            this.renderCategories();
+                        }
+                    }
+                });
+                
+                // Export data
+                document.getElementById("exportData").addEventListener("click", () => {
+                    this.exportAllData();
+                });
+                
+                // Import data
+                document.getElementById("importData").addEventListener("click", () => {
+                    document.getElementById("importFile").click();
+                });
+                
+                document.getElementById("importFile").addEventListener("change", (e) => {
+                    const file = e.target.files;
+                    if (file) {
+                        const reader = new FileReader();
+                        reader.onload = (e) => {
+                            this.importData(e.target.result);
+                        };
+                        reader.readAsText(file);
+                    }
+                });
+                
+                // Reset onboarding
+                document.getElementById("resetOnboarding").addEventListener("click", () => {
+                    this.settings.onboardingCompleted = false;
+                    this.saveSettings();
+                    alert("Onboarding has been reset. It will appear the next time you reload the app.");
+                });
+                
+                // Reset disclaimer
+                document.getElementById("resetDisclaimer").addEventListener("click", () => {
+                    this.settings.showDisclaimer = true;
+                    this.saveSettings();
+                    alert("Disclaimer has been reset. It will appear the next time you reload the app.");
+                });
+                
+                // Clear data
+                document.getElementById("clearData").addEventListener("click", () => {
+                    this.clearAllData();
+                });
+                
+                // Onboarding navigation
+                document.querySelectorAll(".next-step").forEach(btn => {
+                    btn.addEventListener("click", (e) => {
+                        const currentStep = e.target.closest(".onboarding-step");
+                        currentStep.classList.remove("active");
+                        currentStep.nextElementSibling.classList.add("active");
+                    });
+                });
+                
+                document.querySelectorAll(".prev-step").forEach(btn => {
+                    btn.addEventListener("click", (e) => {
+                        const currentStep = e.target.closest(".onboarding-step");
+                        currentStep.classList.remove("active");
+                        currentStep.previousElementSibling.classList.add("active");
+                    });
+                });
+                
+                document.getElementById("closeOnboarding").addEventListener("click", () => {
+                    this.hideOnboarding();
+                });
+                
+                document.getElementById("completeOnboarding").addEventListener("click", () => {
+                    this.hideOnboarding();
+                });
+                
+                // Disclaimer
+                document.getElementById("acceptDisclaimer").addEventListener("click", () => {
+                    this.hideDisclaimer();
+                });
+            },
+            
+            // IndexedDB helpers
+            getAllFromDB: function(storeName) {
+                return new Promise((resolve, reject) => {
+                    const tx = this.db.transaction(storeName, "readonly");
+                    const store = tx.objectStore(storeName);
+                    const request = store.getAll();
+                    
+                    request.onsuccess = () => {
+                        resolve(request.result);
+                    };
+                    
+                    request.onerror = (event) => {
+                        reject(event.target.error);
+                    };
+                });
+            },
+            
+            getFromDB: function(storeName, id) {
+                return new Promise((resolve, reject) => {
+                    const tx = this.db.transaction(storeName, "readonly");
+                    const store = tx.objectStore(storeName);
+                    const request = store.get(id);
+                    
+                    request.onsuccess = () => {
+                        resolve(request.result);
+                    };
+                    
+                    request.onerror = (event) => {
+                        reject(event.target.error);
+                    };
+                });
+            },
+            
+            saveToDB: function(storeName, data) {
+                return new Promise((resolve, reject) => {
+                    const tx = this.db.transaction(storeName, "readwrite");
+                    const store = tx.objectStore(storeName);
+                    const request = store.put(data);
+                    
+                    request.onsuccess = () => {
+                        resolve(request.result);
+                    };
+                    
+                    request.onerror = (event) => {
+                        reject(event.target.error);
+                    };
+                });
+            },
+            
+            deleteFromDB: function(storeName, id) {
+                return new Promise((resolve, reject) => {
+                    const tx = this.db.transaction(storeName, "readwrite");
+                    const store = tx.objectStore(storeName);
+                    const request = store.delete(id);
+                    
+                    request.onsuccess = () => {
+                        resolve();
+                    };
+                    
+                    request.onerror = (event) => {
+                        reject(event.target.error);
+                    };
+                });
+            }
+        };
+        
+        // Initialize the app when DOM is loaded
+        document.addEventListener("DOMContentLoaded", () => {
+            app.init();
+        });
+    </script>
+    </body>
+</html>
