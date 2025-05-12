@@ -3097,6 +3097,253 @@ const graphViewBtn = e.target.closest('\#graph-view-btn');
 });
 
 
+
+
+
+
+
+// Add clickable relations functionality
+document.addEventListener('DOMContentLoaded', function() {
+// Function to make relation fields clickable
+function makeRelationsClickable() {
+const relationsTab = document.getElementById('relations-tab');
+if (!relationsTab) return;
+
+    // Add click event delegation to the relations tab
+    relationsTab.addEventListener('click', async function(e) {
+      // Find clicked relation
+      const relationValue = e.target.closest('.info-value');
+      if (!relationValue) return;
+      
+      // Get the text of the clicked element
+      const relationText = e.target.textContent.trim();
+      
+      // Don't proceed if N/A or if the click is on another element
+      if (relationText === 'N/A' || e.target !== relationValue && !relationValue.contains(e.target)) return;
+      
+      try {
+        // Show a temporary highlight effect
+        const originalBg = relationValue.style.backgroundColor;
+        relationValue.style.backgroundColor = 'rgba(33, 150, 243, 0.3)';
+        
+        // Find the narrator with matching name
+        const narrator = await findNarratorByName(relationText);
+        
+        if (narrator) {
+          // Reset background after delay
+          setTimeout(() => {
+            relationValue.style.backgroundColor = originalBg;
+          }, 300);
+          
+          // Display the found narrator
+          displayNarratorFromRelation(narrator);
+        }
+      } catch (error) {
+        console.error('Error finding relation:', error);
+      }
+    });
+    
+    // Convert relation values to have clickable appearance
+    makeRelationValuesClickable();
+    }
+
+// Add visual indication that relation values are clickable
+function makeRelationValuesClickable() {
+const relationValues = document.querySelectorAll('\#relations-tab .info-value');
+
+    relationValues.forEach(value => {
+      if (value.textContent.trim() !== 'N/A' && !value.classList.contains('clickable-relation')) {
+        value.classList.add('clickable-relation');
+        
+        // Split comma-separated values into clickable spans
+        const text = value.textContent;
+        if (text.includes(', ')) {
+          const parts = text.split(', ');
+          let html = '';
+          
+          parts.forEach(part => {
+            if (part.trim() !== 'NA' && part.trim() !== 'others') {
+              html += `<span class="relation-name">${part}</span>, `;
+            } else {
+              html += `${part}, `;
+            }
+          });
+          
+          // Remove the trailing comma and space
+          html = html.replace(/, $/, '');
+          value.innerHTML = html;
+        } else if (text.trim() !== 'N/A') {
+          value.innerHTML = `<span class="relation-name">${text}</span>`;
+        }
+      }
+    });
+    }
+// Find a narrator by name
+async function findNarratorByName(name) {
+// Clean up the name by removing any trailing indicators or extra text
+
+    const cleanName = name.replace(/$\d+$$/, '').trim();
+    
+    // First try exact match
+    const exactMatch = window.narrators.find(n => 
+      n.name === cleanName || n.name.includes(cleanName)
+    );
+    
+    if (exactMatch) {
+      return exactMatch;
+    }
+    
+    // If exact match fails, try case-insensitive partial match
+    const lowerName = cleanName.toLowerCase();
+    return window.narrators.find(n => 
+      n.name.toLowerCase().includes(lowerName)
+    );
+    }
+
+// Display narrator details when clicked from relations
+function displayNarratorFromRelation(narrator) {
+// Find the narrator item in the list
+const narratorItem = document.querySelector(`.narrator-item[data-id="${narrator.scholar_indx}"]`);
+
+    if (narratorItem) {
+      // If visible in current page, click it
+      narratorItem.click();
+      narratorItem.scrollIntoView({ behavior: 'smooth', block: 'center' });
+    } else {
+      // If not visible, just display directly
+      showNarratorDetails(narrator);
+      
+      // Highlight that this is not in current list view
+      const notification = document.createElement('div');
+      notification.className = 'relation-notification';
+      notification.innerHTML = `
+        <div class="notification-content">
+          <span class="en">Viewing narrator not in current list filter</span>
+          <span class="ur">موجودہ فہرست میں موجود نہیں راوی کو دیکھ رہے ہیں</span>
+          <button class="btn-close">&times;</button>
+        </div>
+      `;
+      
+      // Add close button functionality
+      notification.querySelector('.btn-close').addEventListener('click', () => {
+        notification.remove();
+      });
+      
+      // Add notification to the page
+      document.body.appendChild(notification);
+      
+      // Auto-remove after 5 seconds
+      setTimeout(() => {
+        if (document.body.contains(notification)) {
+          notification.remove();
+        }
+      }, 5000);
+    }
+    }
+
+// Add CSS for clickable relations
+const style = document.createElement('style');
+style.textContent = `
+.clickable-relation {
+cursor: pointer;
+transition: background-color 0.2s;
+}
+
+    .relation-name {
+      color: var(--primary);
+      position: relative;
+      cursor: pointer;
+    }
+    
+    .relation-name:hover {
+      text-decoration: underline;
+    }
+    
+    .relation-notification {
+      position: fixed;
+      bottom: 20px;
+      left: 50%;
+      transform: translateX(-50%);
+      background-color: var(--primary);
+      color: white;
+      padding: 10px 15px;
+      border-radius: var(--border-radius);
+      z-index: 1000;
+      box-shadow: 0 2px 10px rgba(0,0,0,0.2);
+      animation: slideUp 0.3s forwards;
+    }
+    
+    .notification-content {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+    }
+    
+    .btn-close {
+      background: none;
+      border: none;
+      color: white;
+      font-size: 18px;
+      cursor: pointer;
+      padding: 0 5px;
+    }
+    
+    @keyframes slideUp {
+      from { transform: translate(-50%, 100%); opacity: 0; }
+      to { transform: translate(-50%, 0); opacity: 1; }
+    }
+    `;
+document.head.appendChild(style);
+
+// Setup mutation observer to detect when narrator details are loaded/changed
+const narratorDetailObserver = new MutationObserver((mutations) => {
+for (const mutation of mutations) {
+if (mutation.type === 'childList' || mutation.type === 'attributes') {
+if (!document.querySelector('.narrator-content').classList.contains('hidden')) {
+makeRelationValuesClickable();
+}
+}
+}
+});
+
+// Start observing once the narrator-detail element is available
+const checkNarratorDetail = setInterval(() => {
+const narratorDetail = document.getElementById('narrator-detail');
+if (narratorDetail) {
+clearInterval(checkNarratorDetail);
+narratorDetailObserver.observe(narratorDetail, {
+childList: true,
+subtree: true,
+attributes: true,
+attributeFilter: ['class']
+});
+
+      // Initialize clickable relations
+      makeRelationsClickable();
+    }
+    }, 500);
+
+// Monitor tab switching to update clickable relations
+document.addEventListener('click', (e) => {
+if (e.target.classList.contains('tab') && e.target.dataset.tab === 'relations') {
+setTimeout(makeRelationValuesClickable, 100);
+}
+});
+
+// Ensure narrators array is accessible
+if (typeof window.narrators === 'undefined') {
+Object.defineProperty(window, 'narrators', {
+get: function() {
+// If this code runs before the main app sets narrators, return empty array
+return window._narrators || [];
+},
+set: function(value) {
+window._narrators = value;
+}
+});
+}
+});
+
 </script>
 </body>
 </html>
