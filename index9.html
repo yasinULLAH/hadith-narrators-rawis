@@ -1,0 +1,1439 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Isnad Narrators Explorer</title>
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=Roboto:wght@400;700&family=Noto+Nastaliq+Urdu:wght@400;700&display=swap');
+
+        :root {
+            --bg-color: #f4f4f4;
+            --text-color: #333;
+            --primary-color: #007bff;
+            --secondary-color: #6c757d;
+            --card-bg: #fff;
+            --border-color: #ddd;
+            --shadow-color: rgba(0, 0, 0, 0.1);
+            --rtl-direction: ltr;
+            --text-align: left;
+            --font-family: 'Roboto', sans-serif;
+            --prophet-color: #28a745; /* Green color for Prophet's name */
+        }
+
+        [data-theme="dark"] {
+            --bg-color: #1e1e1e;
+            --text-color: #eee;
+            --primary-color: #009688;
+            --secondary-color: #9e9e9e;
+            --card-bg: #2d2d2d;
+            --border-color: #555;
+            --shadow-color: rgba(255, 255, 255, 0.1);
+            --prophet-color: #4caf50; /* Slightly different green for dark theme */
+        }
+
+        [data-lang="ur"] {
+            --rtl-direction: rtl;
+            --text-align: right;
+            --font-family: 'Noto Nastaliq Urdu', serif;
+        }
+
+        body {
+            font-family: var(--font-family);
+            background-color: var(--bg-color);
+            color: var(--text-color);
+            margin: 0;
+            padding: 0;
+            direction: var(--rtl-direction);
+            text-align: var(--text-align);
+            transition: background-color 0.3s, color 0.3s;
+        }
+
+        .container {
+            max-width: 1200px;
+            margin: 20px auto;
+            padding: 0 20px;
+        }
+
+        header {
+            background-color: var(--primary-color);
+            color: white;
+            padding: 15px 0;
+            text-align: center;
+            box-shadow: 0 2px 4px var(--shadow-color);
+        }
+
+        header h1 {
+            margin: 0;
+            font-size: 1.8em;
+        }
+
+        .settings-bar {
+            display: flex;
+            justify-content: flex-end;
+            padding: 10px 20px;
+            background-color: var(--card-bg);
+            border-bottom: 1px solid var(--border-color);
+            flex-wrap: wrap;
+            gap: 10px;
+        }
+
+        .settings-bar label {
+            margin-left: 15px;
+            margin-right: 15px;
+            display: flex;
+            align-items: center;
+        }
+
+        .settings-bar select,
+        .settings-bar button {
+            padding: 5px 10px;
+            border: 1px solid var(--border-color);
+            border-radius: 4px;
+            background-color: var(--bg-color);
+            color: var(--text-color);
+            cursor: pointer;
+        }
+
+        .settings-bar button {
+            background-color: var(--secondary-color);
+            color: white;
+            border: none;
+        }
+
+        .settings-bar button:hover {
+            opacity: 0.9;
+        }
+
+        .search-filter {
+            display: flex;
+            gap: 10px;
+            margin-bottom: 20px;
+            flex-wrap: wrap;
+        }
+
+        .search-filter input,
+        .search-filter select {
+            flex-grow: 1;
+            padding: 10px;
+            border: 1px solid var(--border-color);
+            border-radius: 4px;
+            background-color: var(--card-bg);
+            color: var(--text-color);
+        }
+
+        .narrator-list {
+            display: grid;
+            grid-template-columns: repeat(auto-fill, minmax(250px, 1fr));
+            gap: 20px;
+        }
+
+        .narrator-card {
+            background-color: var(--card-bg);
+            border: 1px solid var(--border-color);
+            border-radius: 8px;
+            padding: 15px;
+            box-shadow: 0 2px 5px var(--shadow-color);
+            cursor: pointer;
+            transition: transform 0.3s ease, box-shadow 0.3s ease;
+        }
+
+        .narrator-card:hover {
+            transform: translateY(-5px);
+            box-shadow: 0 4px 10px var(--shadow-color);
+        }
+
+        .narrator-card h3 {
+            margin-top: 0;
+            color: var(--primary-color);
+            font-size: 1.1em;
+        }
+
+        .narrator-card h3.prophet-name {
+             color: var(--prophet-color);
+             font-weight: bold;
+        }
+
+        .narrator-card p {
+            margin-bottom: 5px;
+            font-size: 0.9em;
+        }
+
+        .pagination {
+            display: flex;
+            justify-content: center;
+            margin-top: 20px;
+            gap: 10px;
+            flex-wrap: wrap;
+        }
+
+        .pagination button {
+            padding: 8px 15px;
+            border: 1px solid var(--border-color);
+            border-radius: 4px;
+            background-color: var(--card-bg);
+            color: var(--text-color);
+            cursor: pointer;
+        }
+
+        .pagination button:disabled {
+            opacity: 0.5;
+            cursor: not-allowed;
+        }
+
+        .pagination button.active {
+            background-color: var(--primary-color);
+            color: white;
+            border-color: var(--primary-color);
+        }
+
+
+        .modal {
+            display: none;
+            position: fixed;
+            z-index: 1;
+            left: 0;
+            top: 0;
+            width: 100%;
+            height: 100%;
+            overflow: auto;
+            background-color: rgba(0, 0, 0, 0.5);
+            padding-top: 60px;
+        }
+
+        .modal-content {
+            background-color: var(--card-bg);
+            margin: 5% auto;
+            padding: 20px;
+            border: 1px solid var(--border-color);
+            border-radius: 8px;
+            width: 80%;
+            max-width: 700px;
+            box-shadow: 0 5px 15px var(--shadow-color);
+            position: relative;
+            animation: fadeIn 0.5s;
+        }
+
+        @keyframes fadeIn {
+            from {
+                opacity: 0;
+            }
+            to {
+                opacity: 1;
+            }
+        }
+
+        .close-button {
+            color: var(--text-color);
+            position: absolute;
+            top: 10px;
+            right: 10px;
+            font-size: 28px;
+            font-weight: bold;
+            cursor: pointer;
+        }
+
+        .close-button:hover,
+        .close-button:focus {
+            color: var(--secondary-color);
+            text-decoration: none;
+        }
+
+        .modal-content h2 {
+            margin-top: 0;
+            color: var(--primary-color);
+        }
+
+         .modal-content h2.prophet-name {
+             color: var(--prophet-color);
+             font-weight: bold;
+         }
+
+
+        .modal-content textarea {
+            width: calc(100% - 20px);
+            padding: 10px;
+            margin-bottom: 10px;
+            border: 1px solid var(--border-color);
+            border-radius: 4px;
+            background-color: var(--bg-color);
+            color: var(--text-color);
+            min-height: 100px;
+        }
+
+        .modal-content button {
+            padding: 10px 15px;
+            background-color: var(--primary-color);
+            color: white;
+            border: none;
+            border-radius: 4px;
+            cursor: pointer;
+            margin-right: 10px;
+        }
+
+        .modal-content button:hover {
+            opacity: 0.9;
+        }
+
+        .modal-content .secondary-button {
+            background-color: var(--secondary-color);
+        }
+
+        .visualization-area {
+            margin-top: 20px;
+            border: 1px solid var(--border-color);
+            border-radius: 8px;
+            padding: 15px;
+            background-color: var(--card-bg);
+            min-height: 400px;
+            position: relative;
+            overflow: hidden; /* Ensure animations stay within bounds */
+        }
+
+        .visualization-area h3 {
+            margin-top: 0;
+            color: var(--primary-color);
+        }
+
+        /* Basic Node and Link Styling for Visualization (using SVG or Canvas) */
+        /* This is a placeholder. A proper D3.js or similar library would handle this. */
+        .viz-node {
+            fill: var(--primary-color);
+            stroke: var(--text-color);
+            stroke-width: 1.5px;
+            cursor: pointer;
+            transition: fill 0.3s ease;
+        }
+
+         .viz-node.prophet-node {
+             fill: var(--prophet-color);
+         }
+
+
+        .viz-node:hover {
+            fill: var(--secondary-color);
+        }
+
+        .viz-link {
+            stroke: var(--secondary-color);
+            stroke-opacity: 0.6;
+            stroke-width: 2px;
+            transition: stroke 0.3s ease;
+        }
+
+        .viz-text {
+            font-size: 12px;
+            fill: var(--text-color);
+            pointer-events: none; /* Don't block mouse events on nodes */
+            text-anchor: middle;
+        }
+
+        .onboarding-overlay,
+        .disclaimer-overlay {
+            display: none;
+            position: fixed;
+            z-index: 1000;
+            left: 0;
+            top: 0;
+            width: 100%;
+            height: 100%;
+            background-color: rgba(0, 0, 0, 0.7);
+            justify-content: center;
+            align-items: center;
+        }
+
+        .onboarding-content,
+        .disclaimer-content {
+            background-color: var(--card-bg);
+            padding: 30px;
+            border-radius: 8px;
+            max-width: 600px;
+            text-align: center;
+            box-shadow: 0 5px 15px var(--shadow-color);
+        }
+
+        .onboarding-content h2,
+        .disclaimer-content h2 {
+            color: var(--primary-color);
+            margin-top: 0;
+        }
+
+        .onboarding-content button,
+        .disclaimer-content button {
+            padding: 10px 20px;
+            background-color: var(--primary-color);
+            color: white;
+            border: none;
+            border-radius: 4px;
+            cursor: pointer;
+            margin-top: 20px;
+        }
+
+        .onboarding-content button:hover,
+        .disclaimer-content button:hover {
+            opacity: 0.9;
+        }
+
+        footer {
+            text-align: center;
+            padding: 20px;
+            margin-top: 30px;
+            color: var(--secondary-color);
+            font-size: 0.9em;
+        }
+
+        /* Responsive adjustments */
+        @media (max-width: 768px) {
+            .container {
+                padding: 0 10px;
+            }
+
+            .settings-bar {
+                flex-direction: column;
+                align-items: flex-end;
+            }
+
+            .settings-bar label {
+                margin: 5px 0;
+            }
+
+            .search-filter {
+                flex-direction: column;
+            }
+
+            .modal-content {
+                width: 95%;
+                margin: 20px auto;
+            }
+        }
+    </style>
+</head>
+<body>
+
+    <header>
+        <h1>Isnad Narrators Explorer</h1>
+    </header>
+
+    <div class="settings-bar">
+        <label for="language-toggle">Language:</label>
+        <select id="language-toggle">
+            <option value="en">English</option>
+            <option value="ur">اردو</option>
+        </select>
+        <label for="theme-toggle">Theme:</label>
+        <select id="theme-toggle">
+            <option value="light">Light</option>
+            <option value="dark">Dark</option>
+        </select>
+        <button id="backup-button">Backup Data</button>
+        <button id="restore-button">Restore Data</button>
+    </div>
+
+    <div class="container">
+        <div class="search-filter">
+            <input type="text" id="search-input" placeholder="Search narrators...">
+            <select id="filter-grade">
+                <option value="">All Grades</option>
+                <!-- Options will be populated dynamically -->
+            </select>
+            <select id="filter-tag">
+                <option value="">All Tags</option>
+                <!-- Options will be populated dynamically -->
+            </select>
+        </div>
+
+        <div class="narrator-list" id="narrator-list">
+            <!-- Narrator cards will be loaded here -->
+        </div>
+
+        <div class="pagination" id="pagination">
+            <!-- Pagination buttons will be added here -->
+        </div>
+
+        <div class="visualization-area">
+            <h3>Narrator Relationships Visualization</h3>
+            <svg id="narrator-viz" width="100%" height="400"></svg>
+        </div>
+    </div>
+
+    <div id="narrator-modal" class="modal">
+        <div class="modal-content">
+            <span class="close-button">×</span>
+            <h2 id="modal-narrator-name"></h2>
+            <p><strong>Grade:</strong> <span id="modal-narrator-grade"></span></p>
+            <p><strong>Birth/Death:</strong> <span id="modal-narrator-dates"></span></p>
+            <p><strong>Teachers:</strong> <span id="modal-narrator-teachers"></span></p>
+            <p><strong>Students:</strong> <span id="modal-narrator-students"></span></p>
+            <p><strong>Parents:</strong> <span id="modal-narrator-parents"></span></p>
+            <p><strong>Spouse:</strong> <span id="modal-narrator-spouse"></span></p>
+            <p><strong>Children:</strong> <span id="modal-narrator-children"></span></p>
+            <p><strong>Siblings:</strong> <span id="modal-narrator-siblings"></span></p>
+            <p><strong>Places:</strong> <span id="modal-narrator-places"></span></p>
+            <p><strong>Area of Interest:</strong> <span id="modal-narrator-interest"></span></p>
+            <p><strong>Tags:</strong> <span id="modal-narrator-tags"></span></p>
+            <p><strong>Books:</strong> <span id="modal-narrator-books"></span></p>
+
+            <h4>Your Notes:</h4>
+            <textarea id="modal-narrator-notes" placeholder="Add your notes here..."></textarea>
+
+            <h4>Categories:</h4>
+            <div id="modal-narrator-categories">
+                <!-- Categories will be displayed/managed here -->
+            </div>
+            <input type="text" id="new-category-input" placeholder="Add new category">
+            <button id="add-category-button">Add Category</button>
+
+            <button id="save-notes-categories">Save</button>
+            <button id="toggle-bookmark" class="secondary-button">Bookmark</button>
+        </div>
+    </div>
+
+    <div id="onboarding-overlay" class="onboarding-overlay">
+        <div class="onboarding-content">
+            <h2>Welcome to Isnad Narrators Explorer!</h2>
+            <p>This app helps you explore the relationships between narrators of Hadith and Islamic history.</p>
+            <p>Search, filter, and visualize connections. Add your own notes and bookmarks.</p>
+            <button id="start-exploring">Start Exploring</button>
+        </div>
+    </div>
+
+    <div id="disclaimer-overlay" class="disclaimer-overlay">
+        <div class="disclaimer-content">
+            <h2>Disclaimer</h2>
+            <p>The data provided in this app is for informational purposes only. While efforts are made to ensure accuracy, it may not be exhaustive or completely free from errors.</p>
+            <p>Always consult authoritative sources for critical information.</p>
+            <button id="accept-disclaimer">I Understand</button>
+        </div>
+    </div>
+
+    <footer>
+        <p>© 2023 Isnad Narrators Explorer. Developed by Yasin Ullah (Pakistan).</p>
+    </footer>
+
+    <input type="file" id="restore-file-input" accept=".json" style="display: none;">
+
+    <script>
+        const CSV_FILE_PATH = 'all_rawis.csv'; // Path to your CSV file
+
+        const DB_NAME = 'IsnadNarratorsDB';
+        const DB_VERSION = 1;
+        const STORE_NAME = 'narrators';
+        const SETTINGS_STORE_NAME = 'settings';
+
+        let db;
+        let allNarrators = []; // Full dataset
+        let filteredNarrators = []; // Dataset after search/filter
+        let currentNarrators = []; // Narrators on the current page
+
+        let userNotes = {};
+        let userBookmarks = {};
+        let userCategories = {};
+        let allCategories = new Set();
+
+        const ITEMS_PER_PAGE = 20; // Number of narrators per page
+        let currentPage = 1;
+
+        const elements = {
+            narratorList: document.getElementById('narrator-list'),
+            pagination: document.getElementById('pagination'),
+            narratorModal: document.getElementById('narrator-modal'),
+            closeButton: document.querySelector('.close-button'),
+            modalNarratorName: document.getElementById('modal-narrator-name'),
+            modalNarratorGrade: document.getElementById('modal-narrator-grade'),
+            modalNarratorDates: document.getElementById('modal-narrator-dates'),
+            modalNarratorTeachers: document.getElementById('modal-narrator-teachers'),
+            modalNarratorStudents: document.getElementById('modal-narrator-students'),
+            modalNarratorParents: document.getElementById('modal-narrator-parents'),
+            modalNarratorSpouse: document.getElementById('modal-narrator-spouse'),
+            modalNarratorChildren: document.getElementById('modal-narrator-children'),
+            modalNarratorSiblings: document.getElementById('modal-narrator-siblings'),
+            modalNarratorPlaces: document.getElementById('modal-narrator-places'),
+            modalNarratorInterest: document.getElementById('modal-narrator-interest'),
+            modalNarratorTags: document.getElementById('modal-narrator-tags'),
+            modalNarratorBooks: document.getElementById('modal-narrator-books'),
+            modalNarratorNotes: document.getElementById('modal-narrator-notes'),
+            modalNarratorCategories: document.getElementById('modal-narrator-categories'),
+            newCategoryInput: document.getElementById('new-category-input'),
+            addCategoryButton: document.getElementById('add-category-button'),
+            saveNotesCategoriesButton: document.getElementById('save-notes-categories'),
+            toggleBookmarkButton: document.getElementById('toggle-bookmark'),
+            searchInput: document.getElementById('search-input'),
+            filterGrade: document.getElementById('filter-grade'),
+            filterTag: document.getElementById('filter-tag'),
+            languageToggle: document.getElementById('language-toggle'),
+            themeToggle: document.getElementById('theme-toggle'),
+            backupButton: document.getElementById('backup-button'),
+            restoreButton: document.getElementById('restore-button'),
+            restoreFileInput: document.getElementById('restore-file-input'),
+            onboardingOverlay: document.getElementById('onboarding-overlay'),
+            startExploringButton: document.getElementById('start-exploring'),
+            disclaimerOverlay: document.getElementById('disclaimer-overlay'),
+            acceptDisclaimerButton: document.querySelector('#accept-disclaimer'),
+            narratorVizSvg: document.getElementById('narrator-viz')
+        };
+
+        let currentModalNarratorId = null;
+
+        // IndexedDB Setup
+        function openDB() {
+            return new Promise((resolve, reject) => {
+                const request = indexedDB.open(DB_NAME, DB_VERSION);
+
+                request.onupgradeneeded = (event) => {
+                    db = event.target.result;
+                    if (!db.objectStoreNames.contains(STORE_NAME)) {
+                        const objectStore = db.createObjectStore(STORE_NAME, {
+                            keyPath: 'scholar_indx'
+                        });
+                        objectStore.createIndex('name', 'name', {
+                            unique: false
+                        });
+                        objectStore.createIndex('grade', 'grade', {
+                            unique: false
+                        });
+                        objectStore.createIndex('tags', 'tags', {
+                            unique: false
+                        });
+                    }
+                    if (!db.objectStoreNames.contains(SETTINGS_STORE_NAME)) {
+                        const settingsStore = db.createObjectStore(SETTINGS_STORE_NAME, {
+                            keyPath: 'key'
+                        });
+                    }
+                };
+
+                request.onsuccess = (event) => {
+                    db = event.target.result;
+                    resolve(db);
+                };
+
+                request.onerror = (event) => {
+                    console.error('IndexedDB error:', event.target.errorCode);
+                    reject(event.target.error);
+                };
+            });
+        }
+
+        async function saveData(storeName, data) {
+            const tx = db.transaction(storeName, 'readwrite');
+            const store = tx.objectStore(storeName);
+            if (Array.isArray(data)) {
+                for (const item of data) {
+                    store.put(item);
+                }
+            } else {
+                store.put(data);
+            }
+            return tx.complete;
+        }
+
+        async function getData(storeName, key) {
+            const tx = db.transaction(storeName, 'readonly');
+            const store = tx.objectStore(storeName);
+            return new Promise((resolve, reject) => {
+                const request = key ? store.get(key) : store.getAll();
+                request.onsuccess = () => resolve(request.result);
+                request.onerror = () => reject(request.error);
+            });
+        }
+
+        async function clearStore(storeName) {
+            const tx = db.transaction(storeName, 'readwrite');
+            const store = tx.objectStore(storeName);
+            store.clear();
+            return tx.complete;
+        }
+
+        // CSV Parsing
+        function parseCSV(csv) {
+            const lines = csv.trim().split('\n');
+            if (lines.length === 0) return [];
+
+            const headers = lines[0].split(',').map(h => h.trim());
+            const data = [];
+
+            for (let i = 1; i < lines.length; i++) {
+                const values = parseCSVLine(lines[i]);
+                if (values.length !== headers.length) {
+                    console.warn(`Skipping malformed line ${i + 1}: "${lines[i]}"`);
+                    continue;
+                }
+                const item = {};
+                headers.forEach((header, index) => {
+                    item[header] = values[index];
+                });
+
+                // Ensure scholar_indx is a number
+                item.scholar_indx = parseInt(item.scholar_indx, 10);
+                if (isNaN(item.scholar_indx)) {
+                    console.warn(`Skipping line ${i + 1} due to invalid scholar_indx: "${lines[i]}"`);
+                    continue;
+                }
+
+                // Add user data fields (will be overwritten by loaded DB data if available)
+                item.notes = '';
+                item.bookmarked = false;
+                item.categories = [];
+
+                data.push(item);
+            }
+            return data;
+        }
+
+        // Helper function to parse a single CSV line, handling commas within quotes
+        function parseCSVLine(line) {
+            const result = [];
+            let currentField = '';
+            let inQuotes = false;
+
+            for (let i = 0; i < line.length; i++) {
+                const char = line[i];
+
+                if (char === '"') {
+                    inQuotes = !inQuotes;
+                } else if (char === ',' && !inQuotes) {
+                    result.push(currentField.trim());
+                    currentField = '';
+                } else {
+                    currentField += char;
+                }
+            }
+            result.push(currentField.trim()); // Add the last field
+
+            return result;
+        }
+
+        // Function to split name into English and Urdu parts
+        function splitName(fullName) {
+    // Regex to capture English (Latin) characters
+    const englishRegex = /[A-Za-z'’\-\.\d\s]+/g;
+    // Regex to capture Urdu/Arabic characters (main Unicode blocks)
+    const arabicRegex = /[\u0600-\u06FF\u0750-\u077F\u08A0-\u08FF\uFB50-\uFDFF\uFE70-\uFEFF\s]+/g;
+
+    // Extract English and Urdu/Arabic sections
+    const englishParts = fullName.match(englishRegex) || [];
+    const arabicParts = fullName.match(arabicRegex) || [];
+
+    // Join and clean up
+    const english = englishParts.join(' ').replace(/\s+/g, ' ').trim();
+    const urdu = arabicParts.join(' ').replace(/\s+/g, ' ').trim();
+
+    return {
+        english: english || fullName.trim(),
+        urdu: urdu
+    };
+}
+
+
+
+        // Data Loading and Initialization
+        async function loadData() {
+            try {
+                await openDB();
+                const storedNarrators = await getData(STORE_NAME);
+                const settings = await getData(SETTINGS_STORE_NAME);
+
+                // Load settings first
+                const savedSettings = settings.reduce((acc, setting) => {
+                    acc[setting.key] = setting.value;
+                    return acc;
+                }, {});
+                applySettings(savedSettings);
+
+                if (storedNarrators && storedNarrators.length > 0) {
+                    allNarrators = storedNarrators;
+                    console.log('Loaded data from IndexedDB');
+                    // Extract user data from loaded narrators
+                    allNarrators.forEach(n => {
+                        userNotes[n.scholar_indx] = n.notes || '';
+                        userBookmarks[n.scholar_indx] = n.bookmarked || false;
+                        userCategories[n.scholar_indx] = n.categories || [];
+                        if (n.categories) {
+                            n.categories.forEach(cat => allCategories.add(cat));
+                        }
+                    });
+                } else {
+                    console.log('No data in IndexedDB, fetching from CSV file');
+                    try {
+                        const response = await fetch(CSV_FILE_PATH);
+                        if (!response.ok) {
+                            throw new Error(`HTTP error! status: ${response.status}`);
+                        }
+                        const csvText = await response.text();
+                        const parsedData = parseCSV(csvText);
+
+                        // Merge parsed data with default user data fields
+                        allNarrators = parsedData.map(item => ({
+                            ...item,
+                            notes: '',
+                            bookmarked: false,
+                            categories: []
+                        }));
+
+                        await saveData(STORE_NAME, allNarrators);
+                        console.log('Fetched, parsed, and saved data to IndexedDB');
+                    } catch (fetchError) {
+                        console.error('Failed to fetch or parse CSV:', fetchError);
+                        alert('Failed to load narrator data from the CSV file. Please ensure "all_rawis.csv" is in the same directory.');
+                        // Continue with empty data or handle gracefully
+                        allNarrators = [];
+                    }
+                }
+
+                filteredNarrators = [...allNarrators]; // Initially, filtered data is all data
+                populateFilters();
+                filterNarrators(); // Apply initial filters (empty) and render the first page
+                checkOnboardingAndDisclaimer();
+
+            } catch (error) {
+                console.error('Failed to initialize app:', error);
+                alert('An error occurred during app initialization. Data might not be available.');
+                // Ensure UI is still rendered even if data loading fails
+                populateFilters();
+                filterNarrators(); // Attempt to render even with empty data
+                checkOnboardingAndDisclaimer();
+            }
+        }
+
+        // Rendering Functions
+        function renderNarrators(narrators) {
+            elements.narratorList.innerHTML = '';
+            if (narrators.length === 0) {
+                elements.narratorList.innerHTML = '<p>No narrators found matching your criteria.</p>';
+                return;
+            }
+            narrators.forEach(narrator => {
+                const card = document.createElement('div');
+                card.classList.add('narrator-card');
+                card.dataset.id = narrator.scholar_indx;
+
+                const nameParts = splitName(narrator.name);
+                const nameHtml = `
+                    <span class="english-name">${nameParts.english}</span>
+                    ${nameParts.urdu ? `<span class="urdu-name" lang="ur" dir="rtl">${nameParts.urdu}</span>` : ''}
+                `;
+
+                const isProphet = narrator.scholar_indx === 1; // Assuming Prophet Muhammad (saw) has scholar_indx 1
+
+                card.innerHTML = `
+                    <h3 class="${isProphet ? 'prophet-name' : ''}">${nameHtml}</h3>
+                    <p><strong>Grade:</strong> ${narrator.grade || 'N/A'}</p>
+                    <p><strong>Dates:</strong> ${narrator.birth_date_place || 'N/A'} - ${narrator.death_date_place || 'N/A'}</p>
+                    ${userBookmarks[narrator.scholar_indx] ? '<p>⭐ Bookmarked</p>' : ''}
+                `;
+                card.addEventListener('click', () => openNarratorModal(narrator.scholar_indx));
+                elements.narratorList.appendChild(card);
+            });
+        }
+
+        function renderPagination() {
+            elements.pagination.innerHTML = '';
+            const totalPages = Math.ceil(filteredNarrators.length / ITEMS_PER_PAGE);
+
+            if (totalPages <= 1) return;
+
+            const createButton = (text, page, isActive = false, isDisabled = false) => {
+                const button = document.createElement('button');
+                button.textContent = text;
+                button.disabled = isDisabled;
+                if (isActive) button.classList.add('active');
+                button.addEventListener('click', () => {
+                    if (!isDisabled) {
+                        currentPage = page;
+                        renderPage(currentPage);
+                    }
+                });
+                return button;
+            };
+
+            elements.pagination.appendChild(createButton('Previous', currentPage - 1, false, currentPage === 1));
+
+            // Show a limited number of page buttons
+            const maxButtons = 5;
+            let startPage = Math.max(1, currentPage - Math.floor(maxButtons / 2));
+            let endPage = Math.min(totalPages, startPage + maxButtons - 1);
+
+            if (endPage - startPage + 1 < maxButtons) {
+                 startPage = Math.max(1, endPage - maxButtons + 1);
+            }
+
+
+            for (let i = startPage; i <= endPage; i++) {
+                elements.pagination.appendChild(createButton(i, i, i === currentPage));
+            }
+
+            elements.pagination.appendChild(createButton('Next', currentPage + 1, false, currentPage === totalPages));
+        }
+
+        function renderPage(page) {
+            const startIndex = (page - 1) * ITEMS_PER_PAGE;
+            const endIndex = startIndex + ITEMS_PER_PAGE;
+            currentNarrators = filteredNarrators.slice(startIndex, endIndex);
+            renderNarrators(currentNarrators);
+            renderPagination();
+            window.scrollTo({ top: 0, behavior: 'smooth' }); // Scroll to top on page change
+        }
+
+
+        function populateFilters() {
+            const grades = new Set(allNarrators.map(n => n.grade).filter(g => g));
+            elements.filterGrade.innerHTML = '<option value="">All Grades</option>' +
+                Array.from(grades).sort().map(grade => `<option value="${grade}">${grade}</option>`).join('');
+
+            const tags = new Set();
+            allNarrators.forEach(n => {
+                if (n.tags) {
+                    // Split by comma, handle potential quotes, remove [ID]
+                    parseCSVLine(n.tags).forEach(tag => {
+                        const cleanTag = tag.trim().replace(/ \[.*?\]/g, '');
+                        if (cleanTag) tags.add(cleanTag);
+                    });
+                }
+            });
+            elements.filterTag.innerHTML = '<option value="">All Tags</option>' +
+                Array.from(tags).sort().map(tag => `<option value="${tag}">${tag}</option>`).join('');
+        }
+
+        // Filtering and Searching
+        function filterNarrators() {
+            const searchTerm = elements.searchInput.value.toLowerCase();
+            const selectedGrade = elements.filterGrade.value;
+            const selectedTag = elements.filterTag.value;
+
+            filteredNarrators = allNarrators.filter(narrator => {
+                const nameMatch = narrator.name.toLowerCase().includes(searchTerm);
+                const gradeMatch = selectedGrade === '' || narrator.grade === selectedGrade;
+                const tagMatch = selectedTag === '' || (narrator.tags && parseCSVLine(narrator.tags).some(tag => tag.trim().replace(/ \[.*?\]/g, '').toLowerCase().includes(selectedTag.toLowerCase())));
+                // Add other fields to search if needed
+                const notesMatch = userNotes[narrator.scholar_indx] && userNotes[narrator.scholar_indx].toLowerCase().includes(searchTerm);
+                const categoriesMatch = userCategories[narrator.scholar_indx] && userCategories[narrator.scholar_indx].some(cat => cat.toLowerCase().includes(searchTerm));
+
+
+                return (nameMatch || notesMatch || categoriesMatch) && gradeMatch && tagMatch;
+            });
+
+            currentPage = 1; // Reset to first page on filter/search
+            renderPage(currentPage);
+        }
+
+        // Modal Functions
+        function openNarratorModal(id) {
+            const narrator = allNarrators.find(n => n.scholar_indx === id);
+            if (!narrator) return;
+
+            currentModalNarratorId = id;
+
+            const nameParts = splitName(narrator.name);
+            const nameHtml = `
+                <span class="english-name">${nameParts.english}</span>
+                ${nameParts.urdu ? `<span class="urdu-name" lang="ur" dir="rtl">${nameParts.urdu}</span>` : ''}
+            `;
+             const isProphet = narrator.scholar_indx === 1;
+
+            elements.modalNarratorName.innerHTML = nameHtml;
+            elements.modalNarratorName.className = isProphet ? 'prophet-name' : ''; // Apply prophet class to modal title
+
+            elements.modalNarratorGrade.textContent = narrator.grade || 'N/A';
+            elements.modalNarratorDates.textContent = `${narrator.birth_date_place || 'N/A'} - ${narrator.death_date_place || 'N/A'}`;
+            elements.modalNarratorTeachers.innerHTML = formatRelatedNarrators(narrator.teachers, narrator.teachers_inds);
+            elements.modalNarratorStudents.innerHTML = formatRelatedNarrators(narrator.students, narrator.students_inds);
+            elements.modalNarratorParents.innerHTML = formatRelatedNarrators(narrator.parents);
+            elements.modalNarratorSpouse.innerHTML = formatRelatedNarrators(narrator.spouse);
+            elements.modalNarratorChildren.innerHTML = formatRelatedNarrators(narrator.children);
+            elements.modalNarratorSiblings.innerHTML = formatRelatedNarrators(narrator.siblings);
+            elements.modalNarratorPlaces.textContent = narrator.places_of_stay || 'N/A';
+            elements.modalNarratorInterest.textContent = narrator.area_of_interest || 'N/A';
+            elements.modalNarratorTags.textContent = narrator.tags ? parseCSVLine(narrator.tags).map(tag => tag.trim().replace(/ \[.*?\]/g, '')).filter(t => t).join(', ') : 'N/A';
+            elements.modalNarratorBooks.textContent = narrator.books || 'N/A';
+
+            elements.modalNarratorNotes.value = userNotes[id] || '';
+            renderCategories(id);
+            updateBookmarkButton(id);
+
+            elements.narratorModal.style.display = 'block';
+            visualizeNarrator(id); // Visualize the selected narrator
+        }
+
+        function formatRelatedNarrators(namesString, idsString = '') {
+            if (!namesString || namesString === 'NA') return 'N/A';
+
+            const names = parseCSVLine(namesString);
+            const ids = idsString ? idsString.split(',').map(id => parseInt(id.trim(), 10)).filter(id => !isNaN(id)) : [];
+
+            let html = '';
+            names.forEach((name, index) => {
+                const idMatch = name.match(/\[(\d+)\]/);
+                const id = idMatch ? parseInt(idMatch[1], 10) : (ids[index] || null);
+                const cleanName = name.replace(/\[\d+\]/g, '').trim();
+
+                if (id && allNarrators.some(n => n.scholar_indx === id)) {
+                    html += `<a href="#" class="narrator-link" data-id="${id}">${cleanName}</a>`;
+                } else {
+                    html += `<span>${cleanName}</span>`;
+                }
+                if (index < names.length - 1) {
+                    html += ', ';
+                }
+            });
+            return html;
+        }
+
+
+        function renderCategories(id) {
+            elements.modalNarratorCategories.innerHTML = '';
+            const categories = userCategories[id] || [];
+            categories.forEach(category => {
+                const span = document.createElement('span');
+                span.textContent = category;
+                span.style.cssText = 'display: inline-block; background-color: var(--secondary-color); color: white; padding: 3px 8px; border-radius: 4px; margin: 2px; font-size: 0.9em;';
+                const removeButton = document.createElement('span');
+                removeButton.textContent = ' ×';
+                removeButton.style.cssText = 'cursor: pointer; margin-left: 5px; font-weight: bold;';
+                removeButton.onclick = () => removeCategory(id, category);
+                span.appendChild(removeButton);
+                elements.modalNarratorCategories.appendChild(span);
+            });
+        }
+
+        function addCategory() {
+            const newCategory = elements.newCategoryInput.value.trim();
+            if (newCategory && currentModalNarratorId !== null) {
+                userCategories[currentModalNarratorId] = userCategories[currentModalNarratorId] || [];
+                if (!userCategories[currentModalNarratorId].includes(newCategory)) {
+                    userCategories[currentModalNarratorId].push(newCategory);
+                    allCategories.add(newCategory); // Add to global list
+                    renderCategories(currentModalNarratorId);
+                    elements.newCategoryInput.value = '';
+                }
+            }
+        }
+
+        function removeCategory(id, category) {
+            if (userCategories[id]) {
+                userCategories[id] = userCategories[id].filter(cat => cat !== category);
+                renderCategories(id);
+                // Note: Removing from allCategories is complex (need to check if used elsewhere),
+                // so we'll leave it for simplicity or handle on full data reload/cleanup.
+            }
+        }
+
+
+        function updateBookmarkButton(id) {
+            const isBookmarked = userBookmarks[id] || false;
+            elements.toggleBookmarkButton.textContent = isBookmarked ? 'Unbookmark' : 'Bookmark';
+            elements.toggleBookmarkButton.style.backgroundColor = isBookmarked ? 'var(--secondary-color)' : 'var(--primary-color)';
+        }
+
+        async function saveNarratorUserData(id) {
+            const narrator = allNarrators.find(n => n.scholar_indx === id);
+            if (narrator) {
+                narrator.notes = elements.modalNarratorNotes.value;
+                narrator.bookmarked = userBookmarks[id] || false;
+                narrator.categories = userCategories[id] || [];
+
+                userNotes[id] = narrator.notes;
+                userBookmarks[id] = narrator.bookmarked;
+                userCategories[id] = narrator.categories;
+
+                try {
+                    await saveData(STORE_NAME, narrator);
+                    console.log(`Saved data for narrator ${id}`);
+                    // Re-render the list to show bookmark status if needed
+                    renderPage(currentPage); // Re-render the current page
+                } catch (error) {
+                    console.error('Failed to save narrator data:', error);
+                    alert('Failed to save data.');
+                }
+            }
+        }
+
+        function closeNarratorModal() {
+            elements.narratorModal.style.display = 'none';
+            currentModalNarratorId = null;
+        }
+
+        // Visualization (Placeholder - requires a library like D3.js for real animation)
+        function visualizeNarrator(narratorId) {
+            const svg = elements.narratorVizSvg;
+            svg.innerHTML = ''; // Clear previous visualization
+
+            const width = svg.clientWidth;
+            const height = svg.clientHeight;
+
+            const narrator = allNarrators.find(n => n.scholar_indx === narratorId);
+            if (!narrator) {
+                svg.innerHTML = '<text x="10" y="20" fill="var(--text-color)">Narrator not found for visualization.</text>';
+                return;
+            }
+
+            const nodes = [{
+                id: narrator.scholar_indx,
+                name: narrator.name,
+                type: 'center'
+            }];
+            const links = [];
+
+            const teachers = (narrator.teachers_inds || '').split(',').map(id => parseInt(id.trim(), 10)).filter(id => !isNaN(id));
+            const students = (narrator.students_inds || '').split(',').map(id => parseInt(id.trim(), 10)).filter(id => !isNaN(id));
+
+            // Limit the number of teachers/students shown in the basic visualization
+            const maxRelated = 10;
+            const visibleTeachers = teachers.slice(0, maxRelated);
+            const visibleStudents = students.slice(0, maxRelated);
+
+
+            visibleTeachers.forEach(id => {
+                const teacher = allNarrators.find(n => n.scholar_indx === id);
+                if (teacher) {
+                    nodes.push({
+                        id: teacher.scholar_indx,
+                        name: teacher.name,
+                        type: 'teacher'
+                    });
+                    links.push({
+                        source: teacher.scholar_indx,
+                        target: narrator.scholar_indx,
+                        type: 'teacher'
+                    });
+                }
+            });
+
+            visibleStudents.forEach(id => {
+                const student = allNarrators.find(n => n.scholar_indx === id);
+                if (student) {
+                    nodes.push({
+                        id: student.scholar_indx,
+                        name: student.name,
+                        type: 'student'
+                    });
+                    links.push({
+                        source: narrator.scholar_indx,
+                        target: student.scholar_indx,
+                        type: 'student'
+                    });
+                }
+            });
+
+            // Simple layout (e.g., center, teachers left, students right)
+            const centerX = width / 2;
+            const centerY = height / 2;
+            const horizontalSpread = width / 3; // Increased horizontal spread
+            const verticalSpread = height * 0.8; // Increased vertical spread
+
+            const teacherCount = visibleTeachers.length;
+            const studentCount = visibleStudents.length;
+
+            nodes.forEach((node, index) => {
+                if (node.type === 'center') {
+                    node.x = centerX;
+                    node.y = centerY;
+                } else if (node.type === 'teacher') {
+                    const teacherIndex = visibleTeachers.findIndex(id => id === node.id);
+                    node.x = centerX - horizontalSpread;
+                    // Distribute teachers vertically
+                    node.y = centerY - (verticalSpread / 2) + (verticalSpread / (teacherCount + 1)) * (teacherIndex + 1);
+                } else if (node.type === 'student') {
+                     const studentIndex = visibleStudents.findIndex(id => id === node.id);
+                    node.x = centerX + horizontalSpread;
+                    // Distribute students vertically
+                    node.y = centerY - (verticalSpread / 2) + (verticalSpread / (studentCount + 1)) * (studentIndex + 1);
+                }
+            });
+
+            // Draw links
+            links.forEach(link => {
+                const sourceNode = nodes.find(n => n.id === link.source);
+                const targetNode = nodes.find(n => n.id === link.target);
+                if (sourceNode && targetNode) {
+                    const line = document.createElementNS('http://www.w3.org/2000/svg', 'line');
+                    line.setAttribute('x1', sourceNode.x);
+                    line.setAttribute('y1', sourceNode.y);
+                    line.setAttribute('x2', targetNode.x);
+                    line.setAttribute('y2', targetNode.y);
+                    line.classList.add('viz-link');
+                    svg.appendChild(line);
+                }
+            });
+
+            // Draw nodes and text
+            nodes.forEach(node => {
+                const circle = document.createElementNS('http://www.w3.org/2000/svg', 'circle');
+                circle.setAttribute('cx', node.x);
+                circle.setAttribute('cy', node.y);
+                circle.setAttribute('r', node.type === 'center' ? 15 : 10);
+                circle.classList.add('viz-node');
+                 if (node.id === 1) circle.classList.add('prophet-node'); // Special class for Prophet
+                circle.dataset.id = node.id; // Store ID for interaction
+                circle.addEventListener('click', () => openNarratorModal(node.id));
+                svg.appendChild(circle);
+
+                const text = document.createElementNS('http://www.w3.org/2000/svg', 'text');
+                text.setAttribute('x', node.x);
+                text.setAttribute('y', node.y - (node.type === 'center' ? 20 : 15));
+                text.classList.add('viz-text');
+                text.textContent = splitName(node.name).english; // Show only English name in viz
+                 // Adjust text position slightly for RTL if needed, but middle anchor helps
+                svg.appendChild(text);
+            });
+
+            // Simple animation (fade-in)
+            svg.style.opacity = 0;
+            setTimeout(() => {
+                svg.style.transition = 'opacity 1s ease-in-out';
+                svg.style.opacity = 1;
+            }, 50);
+        }
+
+
+        // Settings
+        function applySettings(settings) {
+            const body = document.body;
+            const lang = settings.language || 'en';
+            const theme = settings.theme || 'light';
+            const onboardingSeen = settings.onboardingSeen || false;
+            const disclaimerAccepted = settings.disclaimerAccepted || false;
+
+            body.dataset.lang = lang;
+            body.dataset.theme = theme;
+            elements.languageToggle.value = lang;
+            elements.themeToggle.value = theme;
+
+            // Apply RTL/LTR and font based on language
+            if (lang === 'ur') {
+                body.style.direction = 'rtl';
+                body.style.textAlign = 'right';
+                body.style.fontFamily = "'Noto Nastaliq Urdu', serif";
+            } else {
+                body.style.direction = 'ltr';
+                body.style.textAlign = 'left';
+                body.style.fontFamily = "'Roboto', sans-serif";
+            }
+
+            // Apply theme colors
+            // CSS variables handle this automatically via data-theme attribute
+
+            // Handle onboarding and disclaimer visibility
+            // These are checked after data load
+        }
+
+        async function saveSetting(key, value) {
+            try {
+                await saveData(SETTINGS_STORE_NAME, {
+                    key,
+                    value
+                });
+                console.log(`Setting saved: ${key} = ${value}`);
+            } catch (error) {
+                console.error('Failed to save setting:', error);
+            }
+        }
+
+        function checkOnboardingAndDisclaimer() {
+            getData(SETTINGS_STORE_NAME, 'onboardingSeen').then(setting => {
+                const onboardingSeen = setting ? setting.value : false;
+                if (!onboardingSeen) {
+                    elements.onboardingOverlay.style.display = 'flex';
+                } else {
+                    getData(SETTINGS_STORE_NAME, 'disclaimerAccepted').then(setting => {
+                        const disclaimerAccepted = setting ? setting.value : false;
+                        if (!disclaimerAccepted) {
+                            elements.disclaimerOverlay.style.display = 'flex';
+                        }
+                    }).catch(console.error);
+                }
+            }).catch(console.error);
+        }
+
+
+        // Backup and Restore
+        async function backupData() {
+            try {
+                const allData = await getData(STORE_NAME);
+                const settings = await getData(SETTINGS_STORE_NAME);
+                const backup = {
+                    narrators: allData,
+                    settings: settings
+                };
+                const dataStr = JSON.stringify(backup, null, 2);
+                const blob = new Blob([dataStr], {
+                    type: 'application/json'
+                });
+                const url = URL.createObjectURL(blob);
+                const a = document.createElement('a');
+                a.href = url;
+                a.download = 'isnad_narrators_backup.json';
+                document.body.appendChild(a);
+                a.click();
+                document.body.removeChild(a);
+                URL.revokeObjectURL(url);
+                alert('Backup successful!');
+            } catch (error) {
+                console.error('Backup failed:', error);
+                alert('Backup failed. See console for details.');
+            }
+        }
+
+        function restoreData() {
+            elements.restoreFileInput.click();
+        }
+
+        elements.restoreFileInput.addEventListener('change', function(event) {
+            const file = event.target.files[0];
+            if (!file) return;
+
+            const reader = new FileReader();
+            reader.onload = async function(e) {
+                try {
+                    const backupData = JSON.parse(e.target.result);
+                    if (!backupData || !backupData.narrators || !Array.isArray(backupData.narrators)) {
+                        throw new Error('Invalid backup file format.');
+                    }
+
+                    // Optional: Ask for confirmation
+                    if (!confirm('Restoring data will overwrite all existing narrators, notes, bookmarks, and settings. Are you sure?')) {
+                        return;
+                    }
+
+                    await clearStore(STORE_NAME);
+                    await clearStore(SETTINGS_STORE_NAME);
+
+                    await saveData(STORE_NAME, backupData.narrators);
+                    if (backupData.settings && Array.isArray(backupData.settings)) {
+                        await saveData(SETTINGS_STORE_NAME, backupData.settings);
+                    }
+
+                    alert('Restore successful! The app will now reload.');
+                    location.reload(); // Reload to apply restored data and settings
+
+                } catch (error) {
+                    console.error('Restore failed:', error);
+                    alert('Restore failed. Please ensure you selected a valid backup file.');
+                }
+            };
+            reader.onerror = function(e) {
+                console.error('File reading error:', e);
+                alert('Error reading file.');
+            };
+            reader.readAsText(file);
+        });
+
+
+        // Event Listeners
+        elements.searchInput.addEventListener('input', filterNarrators);
+        elements.filterGrade.addEventListener('change', filterNarrators);
+        elements.filterTag.addEventListener('change', filterNarrators);
+
+        elements.closeButton.addEventListener('click', closeNarratorModal);
+        window.addEventListener('click', (event) => {
+            if (event.target === elements.narratorModal) {
+                closeNarratorModal();
+            }
+        });
+
+        elements.addCategoryButton.addEventListener('click', addCategory);
+        elements.newCategoryInput.addEventListener('keypress', (event) => {
+            if (event.key === 'Enter') {
+                event.preventDefault(); // Prevent form submission
+                addCategory();
+            }
+        });
+
+        elements.saveNotesCategoriesButton.addEventListener('click', () => {
+            if (currentModalNarratorId !== null) {
+                saveNarratorUserData(currentModalNarratorId);
+            }
+        });
+
+        elements.toggleBookmarkButton.addEventListener('click', () => {
+            if (currentModalNarratorId !== null) {
+                userBookmarks[currentModalNarratorId] = !(userBookmarks[currentModalNarratorId] || false);
+                updateBookmarkButton(currentModalNarratorId);
+                // Save immediately or wait for Save button click? Let's save on button click for consistency.
+                // saveNarratorUserData(currentModalNarratorId); // Optional: save immediately
+            }
+        });
+
+        // Delegate click events for dynamically added narrator links in modal
+        elements.modalNarratorTeachers.addEventListener('click', handleNarratorLinkClick);
+        elements.modalNarratorStudents.addEventListener('click', handleNarratorLinkClick);
+        elements.modalNarratorParents.addEventListener('click', handleNarratorLinkClick);
+        elements.modalNarratorSpouse.addEventListener('click', handleNarratorLinkClick);
+        elements.modalNarratorChildren.addEventListener('click', handleNarratorLinkClick);
+        elements.modalNarratorSiblings.addEventListener('click', handleNarratorLinkClick);
+
+        function handleNarratorLinkClick(event) {
+            if (event.target.classList.contains('narrator-link')) {
+                event.preventDefault();
+                const id = parseInt(event.target.dataset.id, 10);
+                if (!isNaN(id)) {
+                    closeNarratorModal(); // Close current modal
+                    // Add a small delay before opening the new modal for smoother transition
+                    setTimeout(() => {
+                        openNarratorModal(id);
+                    }, 100);
+                }
+            }
+        }
+
+
+        elements.languageToggle.addEventListener('change', (event) => {
+            const lang = event.target.value;
+            document.body.dataset.lang = lang;
+            saveSetting('language', lang);
+            // Re-apply styles based on new language setting
+            if (lang === 'ur') {
+                document.body.style.direction = 'rtl';
+                document.body.style.textAlign = 'right';
+                document.body.style.fontFamily = "'Noto Nastaliq Urdu', serif";
+            } else {
+                document.body.style.direction = 'ltr';
+                document.body.style.textAlign = 'left';
+                document.body.style.fontFamily = "'Roboto', sans-serif";
+            }
+            // Note: UI text itself is not translated in this single-file version.
+            // A full localization would require separate text resources.
+            // Re-render current page to apply name splitting based on language (though it's always split now)
+            renderPage(currentPage);
+             // Re-render modal if open
+            if (elements.narratorModal.style.display === 'block' && currentModalNarratorId !== null) {
+                 openNarratorModal(currentModalNarratorId);
+            }
+        });
+
+        elements.themeToggle.addEventListener('change', (event) => {
+            const theme = event.target.value;
+            document.body.dataset.theme = theme;
+            saveSetting('theme', theme);
+            // CSS variables handle the rest
+             // Re-render modal if open to update visualization colors
+            if (elements.narratorModal.style.display === 'block' && currentModalNarratorId !== null) {
+                 visualizeNarrator(currentModalNarratorId);
+            }
+        });
+
+        elements.backupButton.addEventListener('click', backupData);
+        elements.restoreButton.addEventListener('click', restoreData);
+
+        elements.startExploringButton.addEventListener('click', () => {
+            elements.onboardingOverlay.style.display = 'none';
+            saveSetting('onboardingSeen', true);
+            // Show disclaimer after onboarding
+            getData(SETTINGS_STORE_NAME, 'disclaimerAccepted').then(setting => {
+                const disclaimerAccepted = setting ? setting.value : false;
+                if (!disclaimerAccepted) {
+                    elements.disclaimerOverlay.style.display = 'flex';
+                }
+            }).catch(console.error);
+        });
+
+        elements.acceptDisclaimerButton.addEventListener('click', () => {
+            elements.disclaimerOverlay.style.display = 'none';
+            saveSetting('disclaimerAccepted', true);
+        });
+
+        // Initial Load
+        loadData();
+    </script>
+
+</body>
+</html>
